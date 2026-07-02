@@ -1,5 +1,9 @@
 mod config;
+mod domain;
 mod http;
+mod store;
+
+use std::sync::Arc;
 
 use tokio::net::TcpListener;
 use tracing_subscriber::{EnvFilter, fmt};
@@ -7,6 +11,7 @@ use tracing_subscriber::{EnvFilter, fmt};
 use crate::{
     config::AppConfig,
     http::{AppState, router},
+    store::AppStore,
 };
 
 #[tokio::main]
@@ -16,6 +21,7 @@ async fn main() -> anyhow::Result<()> {
     let config = AppConfig::from_env()?;
     let app = router(AppState {
         environment: config.environment.clone(),
+        store: Arc::new(AppStore::new()),
     });
     let listener = TcpListener::bind(config.bind_addr).await?;
 

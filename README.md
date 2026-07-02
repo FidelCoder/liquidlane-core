@@ -18,3 +18,15 @@ curl http://localhost:8080/health
 
 - `LIQUIDLANE_BIND_ADDR`: server bind address, defaults to `0.0.0.0:8080`
 - `LIQUIDLANE_ENV`: runtime environment label, defaults to `development`
+
+## MVP API
+
+- `GET /health`
+- `GET /vault?asset=USDC`
+- `GET /deposits`
+- `POST /deposits`
+- `POST /liquidity/quote`
+- `GET /liquidity/requests`
+- `POST /liquidity/requests`
+- `POST /liquidity/requests/{id}/deploy`
+- `GET /activity`
