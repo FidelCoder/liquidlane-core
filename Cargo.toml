@@ -8,7 +8,8 @@ anyhow = "1.0.95"
 axum = "0.8.1"
 chrono = { version = "0.4.41", features = ["serde"] }
 serde = { version = "1.0.217", features = ["derive"] }
-tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread", "signal", "net", "sync"] }
+serde_json = "1.0.135"
+tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread", "signal", "net", "sync", "fs"] }
 tower-http = { version = "0.6.2", features = ["cors", "trace"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
@@ -16,5 +17,4 @@ uuid = { version = "1.11.0", features = ["v4", "serde"] }
 
 [dev-dependencies]
 http-body-util = "0.1.2"
-serde_json = "1.0.135"
 tower = { version = "0.5.2", features = ["util"] }

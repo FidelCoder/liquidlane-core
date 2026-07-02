@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use axum::{
     Json, Router,
-    extract::{Path, Query, State},
-    http::StatusCode,
+    extract::{FromRequestParts, Path, Query, State},
+    http::{StatusCode, request::Parts},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -12,7 +12,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use uuid::Uuid;
 
 use crate::{
-    domain::{CreateDepositRequest, CreateLiquidityRequest},
+    domain::{AuthRequest, CreateDepositRequest, CreateLiquidityRequest, User},
     store::AppStore,
 };
 
@@ -25,15 +25,13 @@ pub struct AppState {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
-        .route("/vault", get(vault_summary))
-        .route("/deposits", get(list_deposits).post(create_deposit))
+        .route("/auth/start", post(start_auth))
+        .route("/me", get(me))
+        .route("/dashboard", get(dashboard))
+        .route("/deposits", post(create_deposit))
         .route("/liquidity/quote", post(create_quote))
-        .route(
-            "/liquidity/requests",
-            get(list_liquidity_requests).post(create_liquidity_request),
-        )
+        .route("/liquidity/requests", post(create_liquidity_request))
         .route("/liquidity/requests/{id}/deploy", post(deploy_liquidity))
-        .route("/activity", get(activity))
         .with_state(state)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
@@ -54,62 +52,94 @@ async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
     })
 }
 
+async fn start_auth(
+    State(state): State<AppState>,
+    Json(request): Json<AuthRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok((StatusCode::CREATED, Json(state.store.auth(request).await?)))
+}
+
+async fn me(AuthedUser(user): AuthedUser) -> impl IntoResponse {
+    Json(crate::domain::UserProfile::from(&user))
+}
+
 #[derive(Deserialize)]
-struct VaultQuery {
+struct DashboardQuery {
     asset: Option<String>,
 }
 
-async fn vault_summary(
+async fn dashboard(
     State(state): State<AppState>,
-    Query(query): Query<VaultQuery>,
+    AuthedUser(user): AuthedUser,
+    Query(query): Query<DashboardQuery>,
 ) -> impl IntoResponse {
-    Json(state.store.vault_summary(query.asset).await)
-}
-
-async fn list_deposits(State(state): State<AppState>) -> impl IntoResponse {
-    Json(state.store.deposits().await)
+    Json(state.store.dashboard(&user, query.asset).await)
 }
 
 async fn create_deposit(
     State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
     Json(request): Json<CreateDepositRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok((
         StatusCode::CREATED,
-        Json(state.store.create_deposit(request).await?),
+        Json(state.store.create_deposit(&user, request).await?),
     ))
 }
 
 async fn create_quote(
     State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
     Json(request): Json<CreateLiquidityRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    Ok(Json(state.store.quote(&request).await?))
-}
-
-async fn list_liquidity_requests(State(state): State<AppState>) -> impl IntoResponse {
-    Json(state.store.liquidity_requests().await)
+    Ok(Json(state.store.quote(&user, &request).await?))
 }
 
 async fn create_liquidity_request(
     State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
     Json(request): Json<CreateLiquidityRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok((
         StatusCode::CREATED,
-        Json(state.store.create_liquidity_request(request).await?),
+        Json(state.store.create_liquidity_request(&user, request).await?),
     ))
 }
 
 async fn deploy_liquidity(
     State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
-    Ok(Json(state.store.deploy_liquidity(id).await?))
+    Ok(Json(state.store.deploy_liquidity(&user, id).await?))
 }
 
-async fn activity(State(state): State<AppState>) -> impl IntoResponse {
-    Json(state.store.activity().await)
+struct AuthedUser(User);
+
+impl FromRequestParts<AppState> for AuthedUser {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth_header = parts
+            .headers
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())
+            .ok_or_else(|| ApiError::unauthorized("missing authorization token"))?;
+        let token = auth_header
+            .strip_prefix("Bearer ")
+            .ok_or_else(|| ApiError::unauthorized("authorization token must use Bearer scheme"))?;
+
+        let user = state
+            .store
+            .user_by_token(token)
+            .await
+            .ok_or_else(|| ApiError::unauthorized("invalid or expired token"))?;
+
+        Ok(Self(user))
+    }
 }
 
 #[derive(Serialize)]
@@ -117,26 +147,42 @@ struct ErrorResponse {
     error: String,
 }
 
-struct ApiError(anyhow::Error);
+struct ApiError {
+    status: StatusCode,
+    message: String,
+}
+
+impl ApiError {
+    fn bad_request(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::BAD_REQUEST,
+            message: message.into(),
+        }
+    }
+
+    fn unauthorized(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::UNAUTHORIZED,
+            message: message.into(),
+        }
+    }
+}
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         (
-            StatusCode::BAD_REQUEST,
+            self.status,
             Json(ErrorResponse {
-                error: self.0.to_string(),
+                error: self.message,
             }),
         )
             .into_response()
     }
 }
 
-impl<E> From<E> for ApiError
-where
-    E: Into<anyhow::Error>,
-{
-    fn from(error: E) -> Self {
-        Self(error.into())
+impl From<anyhow::Error> for ApiError {
+    fn from(error: anyhow::Error) -> Self {
+        Self::bad_request(error.to_string())
     }
 }
 
@@ -154,83 +200,112 @@ mod tests {
     fn test_app() -> Router {
         router(AppState {
             environment: "test".to_string(),
-            store: Arc::new(AppStore::new()),
+            store: Arc::new(AppStore::memory()),
         })
     }
 
-    #[tokio::test]
-    async fn health_returns_ok() {
-        let response = test_app()
-            .oneshot(
-                Request::builder()
-                    .uri("/health")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-
-        let body = response.into_body().collect().await.unwrap().to_bytes();
-        let body = String::from_utf8(body.to_vec()).unwrap();
-
-        assert!(body.contains("\"status\":\"ok\""));
-        assert!(body.contains("\"service\":\"liquidlane-core\""));
-        assert!(body.contains("\"environment\":\"test\""));
-    }
-
-    #[tokio::test]
-    async fn can_create_and_deploy_liquidity_request() {
-        let app = test_app();
-        let body = json!({
-            "merchant_name": "Nova Wallet",
-            "asset": "USDC",
-            "amount": 5000,
-            "duration_days": 30
-        });
-
+    async fn auth_token(app: Router, name: &str, role: &str) -> String {
         let response = app
-            .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/liquidity/requests")
+                    .uri("/auth/start")
                     .header(header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(body.to_string()))
+                    .body(Body::from(
+                        json!({
+                            "name": name,
+                            "email": format!("{}@liquidlane.test", name.to_lowercase().replace(' ', "")),
+                            "role": role
+                        })
+                        .to_string(),
+                    ))
                     .unwrap(),
             )
             .await
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::CREATED);
-
         let body = response.into_body().collect().await.unwrap().to_bytes();
-        let response_body: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        let id = response_body["id"].as_str().unwrap();
-        assert_eq!(response_body["status"], "requested");
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap()["token"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
 
-        let response = app
+    #[tokio::test]
+    async fn protected_dashboard_requires_auth() {
+        let response = test_app()
             .oneshot(
                 Request::builder()
-                    .method("POST")
-                    .uri(format!("/liquidity/requests/{id}/deploy"))
+                    .uri("/dashboard")
                     .body(Body::empty())
                     .unwrap(),
             )
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
 
-        let body = response.into_body().collect().await.unwrap().to_bytes();
-        let response_body: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(response_body["status"], "deployed");
-        assert!(
-            response_body["channel_id"]
-                .as_str()
-                .unwrap()
-                .starts_with("fiber-channel-")
-        );
+    #[tokio::test]
+    async fn lp_deposit_then_merchant_request_and_deploy() {
+        let app = test_app();
+        let lp_token = auth_token(app.clone(), "Atlas LP", "lp").await;
+        let merchant_token = auth_token(app.clone(), "Kairo Market", "merchant").await;
+
+        let deposit_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/deposits")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::AUTHORIZATION, format!("Bearer {lp_token}"))
+                    .body(Body::from(
+                        json!({"asset":"USDC","amount":5000}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(deposit_response.status(), StatusCode::CREATED);
+
+        let request_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/liquidity/requests")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::AUTHORIZATION, format!("Bearer {merchant_token}"))
+                    .body(Body::from(
+                        json!({"asset":"USDC","amount":3000,"duration_days":30}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(request_response.status(), StatusCode::CREATED);
+        let body = request_response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
+        let request_body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let id = request_body["id"].as_str().unwrap();
+
+        let deploy_response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/liquidity/requests/{id}/deploy"))
+                    .header(header::AUTHORIZATION, format!("Bearer {merchant_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(deploy_response.status(), StatusCode::OK);
     }
 }

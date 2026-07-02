@@ -19,15 +19,17 @@ async fn main() -> anyhow::Result<()> {
     init_tracing();
 
     let config = AppConfig::from_env()?;
+    let store = AppStore::load(config.data_path.clone()).await?;
     let app = router(AppState {
         environment: config.environment.clone(),
-        store: Arc::new(AppStore::new()),
+        store: Arc::new(store),
     });
     let listener = TcpListener::bind(config.bind_addr).await?;
 
     tracing::info!(
         bind_addr = %config.bind_addr,
         environment = %config.environment,
+        data_path = %config.data_path.display(),
         "starting LiquidLane Core"
     );
 
