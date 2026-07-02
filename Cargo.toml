@@ -1,0 +1,17 @@
+[package]
+name = "liquidlane-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.95"
+axum = "0.8.1"
+serde = { version = "1.0.217", features = ["derive"] }
+tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread", "signal", "net"] }
+tower-http = { version = "0.6.2", features = ["cors", "trace"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+
+[dev-dependencies]
+http-body-util = "0.1.2"
+tower = { version = "0.5.2", features = ["util"] }
