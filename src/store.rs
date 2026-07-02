@@ -1,15 +1,17 @@
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::HashSet, path::PathBuf, str::FromStr};
 
 use anyhow::{Result, anyhow};
-use chrono::Utc;
+use chrono::{Duration, Utc};
+use ethers_core::types::{Address, Signature};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::domain::{
-    ActivityEvent, AuthRequest, AuthResponse, CreateDepositRequest, CreateLiquidityRequest,
-    Dashboard, Deposit, LiquidityQuote, LiquidityRequest, LiquidityStatus, User, UserProfile,
-    UserRole, VaultSummary,
+    ActivityEvent, AuthChallenge, AuthResponse, ChallengeRequest, ChallengeResponse,
+    CreateDepositRequest, CreateLiquidityRequest, Dashboard, Deposit, LiquidityQuote,
+    LiquidityRequest, LiquidityStatus, User, UserProfile, UserRole, VaultSummary,
+    VerifyWalletRequest,
 };
 
 pub struct AppStore {
@@ -20,6 +22,7 @@ pub struct AppStore {
 #[derive(Default, Serialize, Deserialize)]
 struct StoreState {
     users: Vec<User>,
+    challenges: Vec<AuthChallenge>,
     deposits: Vec<Deposit>,
     liquidity_requests: Vec<LiquidityRequest>,
     events: Vec<ActivityEvent>,
@@ -46,30 +49,89 @@ impl AppStore {
         }
     }
 
-    pub async fn auth(&self, request: AuthRequest) -> Result<AuthResponse> {
-        validate_required("name", &request.name)?;
-        validate_required("email", &request.email)?;
+    pub async fn create_challenge(&self, request: ChallengeRequest) -> Result<ChallengeResponse> {
+        let wallet_address = normalize_wallet(&request.wallet_address)?;
+        let now = Utc::now();
+        let expires_at = now + Duration::minutes(5);
+        let challenge_id = Uuid::new_v4();
+        let nonce = Uuid::new_v4();
+        let message = format!(
+            "LiquidLane wallet sign-in\n\nWallet: {wallet_address}\nRole: {:?}\nChallenge: {challenge_id}\nNonce: {nonce}\nExpires: {}\n\nOnly sign this message on liquidlane.app.",
+            request.role,
+            expires_at.to_rfc3339()
+        );
+
+        let challenge = AuthChallenge {
+            id: challenge_id,
+            wallet_address,
+            role: request.role,
+            message: message.clone(),
+            expires_at,
+            consumed: false,
+        };
 
         let mut state = self.inner.write().await;
-        let normalized_email = request.email.trim().to_lowercase();
+        state.challenges.push(challenge);
+        self.persist_locked(&state).await?;
+
+        Ok(ChallengeResponse {
+            challenge_id,
+            message,
+            expires_at,
+        })
+    }
+
+    pub async fn verify_wallet(&self, request: VerifyWalletRequest) -> Result<AuthResponse> {
+        let wallet_address = normalize_wallet(&request.wallet_address)?;
+        let mut state = self.inner.write().await;
+        let (message, role) = {
+            let challenge = state
+                .challenges
+                .iter_mut()
+                .find(|challenge| challenge.id == request.challenge_id)
+                .ok_or_else(|| anyhow!("challenge not found"))?;
+
+            if challenge.consumed {
+                return Err(anyhow!("challenge has already been used"));
+            }
+            if challenge.expires_at < Utc::now() {
+                return Err(anyhow!("challenge has expired"));
+            }
+            if challenge.wallet_address != wallet_address {
+                return Err(anyhow!("challenge wallet does not match request wallet"));
+            }
+
+            let message = challenge.message.clone();
+            let role = challenge.role.clone();
+            verify_signature(&message, &wallet_address, &request.signature)?;
+            challenge.consumed = true;
+            (message, role)
+        };
+        drop(message);
+
         let now = Utc::now();
+        let display_name = request
+            .display_name
+            .filter(|name| !name.trim().is_empty())
+            .unwrap_or_else(|| short_wallet(&wallet_address));
         let user_index = state
             .users
             .iter()
-            .position(|user| user.email == normalized_email);
+            .position(|user| user.wallet_address == wallet_address);
 
         let user = match user_index {
             Some(index) => {
-                state.users[index].name = request.name.trim().to_string();
-                state.users[index].role = request.role;
+                state.users[index].display_name = display_name.trim().to_string();
+                state.users[index].role = role;
+                state.users[index].token = Uuid::new_v4().to_string();
                 state.users[index].clone()
             }
             None => {
                 let user = User {
                     id: Uuid::new_v4(),
-                    name: request.name.trim().to_string(),
-                    email: normalized_email,
-                    role: request.role,
+                    display_name: display_name.trim().to_string(),
+                    wallet_address: wallet_address.clone(),
+                    role,
                     token: Uuid::new_v4().to_string(),
                     created_at: now,
                 };
@@ -83,7 +145,7 @@ impl AppStore {
             ActivityEvent {
                 id: Uuid::new_v4(),
                 actor_id: user.id,
-                label: format!("{} signed in", user.name),
+                label: format!("{} authenticated wallet", user.display_name),
                 amount: None,
                 asset: None,
                 created_at: now,
@@ -161,9 +223,11 @@ impl AppStore {
         let deposit = Deposit {
             id: Uuid::new_v4(),
             lp_id: user.id,
-            lp_name: user.name.clone(),
+            lp_name: user.display_name.clone(),
+            wallet_address: user.wallet_address.clone(),
             asset: normalize_asset(&request.asset),
             amount: request.amount,
+            tx_hash: request.tx_hash,
             created_at: Utc::now(),
         };
 
@@ -173,7 +237,7 @@ impl AppStore {
             ActivityEvent {
                 id: Uuid::new_v4(),
                 actor_id: user.id,
-                label: format!("{} deposited liquidity", user.name),
+                label: format!("{} deposited liquidity", user.display_name),
                 amount: Some(deposit.amount),
                 asset: Some(deposit.asset.clone()),
                 created_at: deposit.created_at,
@@ -206,7 +270,8 @@ impl AppStore {
         let liquidity_request = LiquidityRequest {
             id: Uuid::new_v4(),
             merchant_id: user.id,
-            merchant_name: user.name.clone(),
+            merchant_name: user.display_name.clone(),
+            wallet_address: user.wallet_address.clone(),
             asset: quote.asset,
             amount: request.amount,
             duration_days: request.duration_days,
@@ -231,7 +296,7 @@ impl AppStore {
             ActivityEvent {
                 id: Uuid::new_v4(),
                 actor_id: user.id,
-                label: format!("{} reserved receive capacity", user.name),
+                label: format!("{} reserved receive capacity", user.display_name),
                 amount: Some(liquidity_request.amount),
                 asset: Some(liquidity_request.asset.clone()),
                 created_at: now,
@@ -397,6 +462,32 @@ impl StoreState {
             .cloned()
             .collect()
     }
+}
+
+fn normalize_wallet(wallet_address: &str) -> Result<String> {
+    let address = Address::from_str(wallet_address.trim())?;
+    Ok(format!("{address:?}").to_lowercase())
+}
+
+fn verify_signature(message: &str, wallet_address: &str, signature: &str) -> Result<()> {
+    let expected = Address::from_str(wallet_address)?;
+    let signature = Signature::from_str(signature.trim())?;
+    let recovered = signature.recover(message)?;
+    if recovered != expected {
+        return Err(anyhow!("wallet signature does not match address"));
+    }
+    Ok(())
+}
+
+fn short_wallet(wallet_address: &str) -> String {
+    if wallet_address.len() < 12 {
+        return wallet_address.to_string();
+    }
+    format!(
+        "{}...{}",
+        &wallet_address[..6],
+        &wallet_address[wallet_address.len() - 4..]
+    )
 }
 
 fn normalize_asset(asset: &str) -> String {

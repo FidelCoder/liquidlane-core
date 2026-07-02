@@ -12,7 +12,9 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use uuid::Uuid;
 
 use crate::{
-    domain::{AuthRequest, CreateDepositRequest, CreateLiquidityRequest, User},
+    domain::{
+        ChallengeRequest, CreateDepositRequest, CreateLiquidityRequest, User, VerifyWalletRequest,
+    },
     store::AppStore,
 };
 
@@ -25,7 +27,8 @@ pub struct AppState {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
-        .route("/auth/start", post(start_auth))
+        .route("/auth/challenge", post(create_challenge))
+        .route("/auth/verify", post(verify_wallet))
         .route("/me", get(me))
         .route("/dashboard", get(dashboard))
         .route("/deposits", post(create_deposit))
@@ -52,11 +55,24 @@ async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
     })
 }
 
-async fn start_auth(
+async fn create_challenge(
     State(state): State<AppState>,
-    Json(request): Json<AuthRequest>,
+    Json(request): Json<ChallengeRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    Ok((StatusCode::CREATED, Json(state.store.auth(request).await?)))
+    Ok((
+        StatusCode::CREATED,
+        Json(state.store.create_challenge(request).await?),
+    ))
+}
+
+async fn verify_wallet(
+    State(state): State<AppState>,
+    Json(request): Json<VerifyWalletRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok((
+        StatusCode::CREATED,
+        Json(state.store.verify_wallet(request).await?),
+    ))
 }
 
 async fn me(AuthedUser(user): AuthedUser) -> impl IntoResponse {
@@ -204,17 +220,21 @@ mod tests {
         })
     }
 
-    async fn auth_token(app: Router, name: &str, role: &str) -> String {
-        let response = app
+    async fn auth_token(app: Router, name: &str, role: &str, key: &str) -> String {
+        use ethers_signers::{LocalWallet, Signer};
+
+        let wallet: LocalWallet = key.parse().unwrap();
+        let address = format!("{:?}", wallet.address());
+        let challenge_response = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/auth/start")
+                    .uri("/auth/challenge")
                     .header(header::CONTENT_TYPE, "application/json")
                     .body(Body::from(
                         json!({
-                            "name": name,
-                            "email": format!("{}@liquidlane.test", name.to_lowercase().replace(' ', "")),
+                            "wallet_address": address,
                             "role": role
                         })
                         .to_string(),
@@ -224,8 +244,44 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::CREATED);
-        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(challenge_response.status(), StatusCode::CREATED);
+        let body = challenge_response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
+        let challenge: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let message = challenge["message"].as_str().unwrap();
+        let signature = wallet.sign_message(message).await.unwrap().to_string();
+
+        let verify_response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/auth/verify")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        json!({
+                            "challenge_id": challenge["challenge_id"],
+                            "wallet_address": address,
+                            "signature": signature,
+                            "display_name": name
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(verify_response.status(), StatusCode::CREATED);
+        let body = verify_response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
         serde_json::from_slice::<serde_json::Value>(&body).unwrap()["token"]
             .as_str()
             .unwrap()
@@ -250,8 +306,20 @@ mod tests {
     #[tokio::test]
     async fn lp_deposit_then_merchant_request_and_deploy() {
         let app = test_app();
-        let lp_token = auth_token(app.clone(), "Atlas LP", "lp").await;
-        let merchant_token = auth_token(app.clone(), "Kairo Market", "merchant").await;
+        let lp_token = auth_token(
+            app.clone(),
+            "Atlas LP",
+            "lp",
+            "0x59c6995e998f97a5a0044966f09453857395f8816f99667bb4d5b10c4b1f7f1c",
+        )
+        .await;
+        let merchant_token = auth_token(
+            app.clone(),
+            "Kairo Market",
+            "merchant",
+            "0x8b3a350cf5c34c9194ca3a9d8b148b52f726cabaa46cfd31e2f7f5b27e6f4d8b",
+        )
+        .await;
 
         let deposit_response = app
             .clone()
