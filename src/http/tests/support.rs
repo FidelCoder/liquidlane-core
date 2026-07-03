@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use axum::{
     Router,
@@ -16,6 +16,10 @@ use crate::{
 };
 
 pub(super) fn test_app() -> Router {
+    test_app_with_script_build_dir(PathBuf::from("./ckb-scripts/build"))
+}
+
+pub(super) fn test_app_with_script_build_dir(ckb_script_build_dir: PathBuf) -> Router {
     router(AppState {
         environment: "test".to_string(),
         vault: VaultConfig {
@@ -32,6 +36,7 @@ pub(super) fn test_app() -> Router {
             },
         },
         store: Arc::new(AppStore::memory()),
+        ckb_script_build_dir,
     })
 }
 

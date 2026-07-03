@@ -1,5 +1,6 @@
 mod ckb_rpc;
 mod config;
+mod deployment;
 mod domain;
 mod fiber;
 mod http;
@@ -42,6 +43,7 @@ async fn main() -> anyhow::Result<()> {
     let app = router(AppState {
         environment: config.environment.clone(),
         vault: config.vault.clone(),
+        ckb_script_build_dir: config.ckb_script_build_dir.clone(),
         store: Arc::new(store),
     });
     let listener = TcpListener::bind(config.bind_addr).await?;
@@ -55,6 +57,7 @@ async fn main() -> anyhow::Result<()> {
         ckb_rpc_required = config.require_ckb_rpc,
         vault_asset = %config.vault.asset,
         vault_network = %config.vault.network,
+        ckb_script_build_dir = %config.ckb_script_build_dir.display(),
         "starting LiquidLane Core"
     );
 

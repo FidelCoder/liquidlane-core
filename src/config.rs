@@ -12,6 +12,7 @@ pub struct AppConfig {
     pub ckb_rpc_url: Option<String>,
     pub ckb_accept_pending_txs: bool,
     pub require_ckb_rpc: bool,
+    pub ckb_script_build_dir: PathBuf,
     pub vault: VaultConfig,
 }
 
@@ -32,6 +33,9 @@ impl AppConfig {
             .filter(|value| !value.trim().is_empty());
         let ckb_rpc_url = optional_env("LIQUIDLANE_CKB_RPC_URL");
         let ckb_accept_pending_txs = bool_env("LIQUIDLANE_CKB_ACCEPT_PENDING_TXS", false)?;
+        let ckb_script_build_dir = env::var("LIQUIDLANE_CKB_SCRIPT_BUILD_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("./ckb-scripts/build"));
         let vault_address = optional_env("LIQUIDLANE_VAULT_CKB_ADDRESS")
             .map(validate_vault_address)
             .transpose()?;
@@ -68,6 +72,7 @@ impl AppConfig {
             ckb_rpc_url,
             ckb_accept_pending_txs,
             require_ckb_rpc,
+            ckb_script_build_dir,
             vault,
         })
     }

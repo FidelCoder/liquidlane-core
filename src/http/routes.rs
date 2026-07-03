@@ -67,6 +67,14 @@ pub(super) async fn vault(State(state): State<AppState>) -> Json<VaultConfig> {
     Json(state.vault.clone())
 }
 
+pub(super) async fn deployment_package(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(
+        crate::deployment::load_script_package(&state.ckb_script_build_dir).await?,
+    ))
+}
+
 #[derive(Deserialize)]
 pub(super) struct DashboardQuery {
     asset: Option<String>,
