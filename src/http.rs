@@ -236,8 +236,9 @@ mod tests {
             environment: "test".to_string(),
             vault: VaultConfig {
                 asset: "CKB".to_string(),
-                address: "ckt1qpkp7liquidlanevault000000000000000000000000000".to_string(),
+                address: Some("ckt1qpkp7liquidlanevault000000000000000000000000000".to_string()),
                 network: "testnet".to_string(),
+                configured: true,
             },
             store: Arc::new(AppStore::memory()),
         })
@@ -312,6 +313,7 @@ mod tests {
         let vault: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(vault["asset"], "CKB");
         assert_eq!(vault["network"], "testnet");
+        assert!(vault["configured"].as_bool().unwrap());
         assert!(vault["address"].as_str().unwrap().starts_with("ckt"));
     }
 
