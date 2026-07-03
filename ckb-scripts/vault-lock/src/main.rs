@@ -1,10 +1,14 @@
 #![no_std]
 #![no_main]
 
-use ckb_std::ckb_constants::Source;
+use ckb_std::{
+    ckb_constants::Source,
+    high_level::{load_cell_lock_hash, load_cell_type_hash, QueryIter},
+};
 use liquidlane_scripts_shared::{
-    count_lock_hash, current_script_hash, has_input_lock_hash, has_input_type_hash, read_hash,
-    script_args, Hash, ScriptError, ScriptResult, HASH_SIZE,
+    current_script_hash, has_input_lock_hash, has_input_or_output_type_code_hash,
+    has_input_or_output_type_hash, read_hash, script_args, Hash, ScriptError, ScriptResult,
+    HASH_SIZE,
 };
 
 ckb_std::entry!(program_entry);
@@ -36,8 +40,7 @@ pub fn program_entry() -> i8 {
 fn main() -> ScriptResult<()> {
     let args = Args::load()?;
     require_authorized_spend(&args)?;
-    require_vault_cells_remain_typed(&args)?;
-    Ok(())
+    require_vault_outputs_remain_typed(&args)
 }
 
 impl Args {
@@ -60,25 +63,25 @@ fn require_authorized_spend(args: &Args) -> ScriptResult<()> {
     if has_input_lock_hash(&args.admin_lock) {
         return Ok(());
     }
-    if has_input_type_hash(&args.lp_receipt_type)
-        || has_input_type_hash(&args.request_type)
-        || has_input_type_hash(&args.fee_claim_type)
-    {
+    let service_path = has_input_or_output_type_code_hash(&args.lp_receipt_type)
+        || has_input_or_output_type_code_hash(&args.request_type)
+        || has_input_or_output_type_code_hash(&args.fee_claim_type);
+    if service_path && has_input_or_output_type_hash(&args.vault_type) {
         return Ok(());
     }
     Err(ScriptError::Unauthorized)
 }
 
-fn require_vault_cells_remain_typed(args: &Args) -> ScriptResult<()> {
+fn require_vault_outputs_remain_typed(args: &Args) -> ScriptResult<()> {
     let own_lock = current_script_hash()?;
-    let output_vault_lock_count = count_lock_hash(&own_lock, Source::Output);
-    if output_vault_lock_count == 0 {
-        return Ok(());
-    }
-    let output_vault_type_count =
-        liquidlane_scripts_shared::count_type_hash(&args.vault_type, Source::Output);
-    if output_vault_type_count < output_vault_lock_count {
-        return Err(ScriptError::MissingVault);
+    for (index, lock_hash) in QueryIter::new(load_cell_lock_hash, Source::Output).enumerate() {
+        if lock_hash != own_lock {
+            continue;
+        }
+        let type_hash = load_cell_type_hash(index, Source::Output)?;
+        if type_hash.as_ref() != Some(&args.vault_type) {
+            return Err(ScriptError::MissingVault);
+        }
     }
     Ok(())
 }
