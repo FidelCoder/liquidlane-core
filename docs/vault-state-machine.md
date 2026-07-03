@@ -38,6 +38,6 @@ CKB does not use EVM contracts. The production trust layer is expressed as lock/
 - merchant request cells
 - fee claim cells
 
-Draft script sources live in `ckb-scripts/`. They are source-level designs for the vault layer and still need CKB toolchain builds, transaction-level tests, audit, and testnet deployment before protecting real funds.
+Draft script sources live in `ckb-scripts/`. They now enforce singleton-style group transitions, strict data lengths, and service-specific accounting deltas, but still need CKB toolchain builds, transaction-level tests, external audit, unique type-id style vault deployment, and testnet deployment before protecting real funds.
 
 Core exposes script code-hash configuration so clients can display and validate which script family protects the active vault once those scripts are deployed.

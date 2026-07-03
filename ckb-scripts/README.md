@@ -6,31 +6,32 @@ These scripts are not deployed, audited, or wired to a testnet cell yet. They de
 
 ## Services Covered
 
-- `vault-lock`: guards custody cells and only allows spends through admin, LP receipt, capacity request, or fee claim paths.
-- `vault-type`: validates aggregate vault accounting and prevents unauthorized value movement.
-- `lp-receipt-type`: tracks LP supplied, available, reserved, deployed, and claimed balances.
-- `capacity-request-type`: tracks merchant capacity requests and requires merchant or operator authorization.
-- `fee-claim-type`: validates LP fee claim cells against the LP receipt and vault path.
+- `vault-lock`: guards custody cells, requires a real service path or admin path, and rejects vault-lock outputs without the vault type.
+- `vault-type`: validates singleton aggregate vault accounting and only allows deltas through the matching service script.
+- `lp-receipt-type`: tracks LP supplied, available, reserved, deployed, and claimed balances with LP/request/claim transition rules.
+- `capacity-request-type`: tracks merchant capacity requests with immutable amount/fee/expiry and monotonic status changes.
+- `fee-claim-type`: validates LP fee claim cells with immutable amount and monotonic status changes.
 - `shared`: small no-std helpers for argument parsing, hash checks, data reads, and capacity scans.
 
 ## Script Arguments
 
-All script arguments are raw 32-byte hashes packed in order.
+All script arguments are raw 32-byte hashes packed in order. Vault references use exact script hashes. Service-family references use script code hashes so one vault can work with many receipt, request, and claim cells.
 
 | Script | Args |
 | --- | --- |
-| `vault-lock` | admin lock hash, vault type hash, LP receipt type hash, request type hash, fee claim type hash |
-| `vault-type` | admin lock hash, LP receipt type hash, request type hash, fee claim type hash |
-| `lp-receipt-type` | vault type hash, LP lock hash, asset id, position id |
-| `capacity-request-type` | vault type hash, merchant lock hash, operator lock hash, request id |
-| `fee-claim-type` | vault type hash, LP receipt type hash, LP lock hash, claim id |
+| `vault-lock` | admin lock hash, vault type script hash, LP receipt code hash, request code hash, fee claim code hash |
+| `vault-type` | admin lock hash, LP receipt code hash, request code hash, fee claim code hash |
+| `lp-receipt-type` | vault type script hash, LP lock hash, request code hash, fee claim code hash, asset id, position id |
+| `capacity-request-type` | vault type script hash, merchant lock hash, operator lock hash, request id |
+| `fee-claim-type` | vault type script hash, LP receipt type script hash, LP lock hash, claim id |
 
 ## Deployment Path
 
 1. Compile each script to a RISC-V CKB binary with the CKB script toolchain.
-2. Run unit tests and transaction-level tests with generated cells and witnesses.
-3. Deploy script binaries to testnet cells.
-4. Set the resulting code hashes in Core:
+2. Add transaction-level tests for create, update, close, invalid duplicate groups, bad actor paths, and bad accounting deltas.
+3. Deploy a unique vault instance using CKB's type-id style pattern so the vault accounting cell cannot be cloned with the same args.
+4. Deploy script binaries to testnet cells.
+5. Set the resulting code hashes in Core:
 
 ```bash
 LIQUIDLANE_VAULT_LOCK_CODE_HASH=0x...
