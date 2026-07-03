@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = [
+  "shared",
+  "vault-lock",
+  "vault-type",
+  "lp-receipt-type",
+  "capacity-request-type",
+  "fee-claim-type",
+]
+
+[workspace.dependencies]
+ckb-std = "0.16"
+liquidlane-scripts-shared = { path = "shared" }
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

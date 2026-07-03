@@ -31,11 +31,13 @@ LiquidLane Core models the CKB-native vault lifecycle that the app and future on
 
 ## Script Layer
 
-CKB does not use EVM contracts. The production trust layer should be lock/type scripts for:
+CKB does not use EVM contracts. The production trust layer is expressed as lock/type scripts for:
 
 - vault custody
 - LP receipt cells
 - merchant request cells
 - fee claim cells
 
-Core already exposes script code-hash configuration so clients can display and validate which script family protects the active vault.
+Draft script sources live in `ckb-scripts/`. They are source-level designs for the vault layer and still need CKB toolchain builds, transaction-level tests, audit, and testnet deployment before protecting real funds.
+
+Core exposes script code-hash configuration so clients can display and validate which script family protects the active vault once those scripts are deployed.

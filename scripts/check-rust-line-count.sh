@@ -10,7 +10,7 @@ while IFS= read -r -d '' file; do
     printf '%s %s\n' "$lines" "$file"
     failed=1
   fi
-done < <(find src -name '*.rs' -print0)
+done < <(find src ckb-scripts -path '*/target/*' -prune -o -name '*.rs' -print0)
 
 if (( failed )); then
   printf 'Rust source files must be <= %s lines.\n' "$limit" >&2
