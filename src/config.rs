@@ -1,6 +1,6 @@
 use std::{env, net::SocketAddr, path::PathBuf};
 
-use crate::domain::VaultConfig;
+use crate::domain::{VaultConfig, VaultScripts};
 
 #[derive(Clone, Debug)]
 pub struct AppConfig {
@@ -42,6 +42,13 @@ impl AppConfig {
                 .unwrap_or_else(|_| "testnet".to_string())
                 .trim()
                 .to_lowercase(),
+            scripts: VaultScripts {
+                vault_lock_code_hash: optional_env("LIQUIDLANE_VAULT_LOCK_CODE_HASH"),
+                vault_type_code_hash: optional_env("LIQUIDLANE_VAULT_TYPE_CODE_HASH"),
+                lp_receipt_type_code_hash: optional_env("LIQUIDLANE_LP_RECEIPT_TYPE_CODE_HASH"),
+                request_type_code_hash: optional_env("LIQUIDLANE_REQUEST_TYPE_CODE_HASH"),
+                fee_claim_type_code_hash: optional_env("LIQUIDLANE_FEE_CLAIM_TYPE_CODE_HASH"),
+            },
         };
 
         Ok(Self {
@@ -53,4 +60,11 @@ impl AppConfig {
             vault,
         })
     }
+}
+
+fn optional_env(key: &str) -> Option<String> {
+    env::var(key)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }

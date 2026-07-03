@@ -74,14 +74,27 @@ Use the returned bearer token for product APIs.
 
 ## Supply Liquidity API
 
-`POST /deposits` requires `signed_tx` from the CKB wallet. Bare accounting deposits are rejected.
+Supply is a two-step CKB-native flow. Core creates a vault intent, the wallet signs a transaction to the active vault address, then Core settles the intent into an LP position. Bare accounting deposits are rejected.
+
+Create a supply intent:
+
+```bash
+curl -X POST http://localhost:8080/vault/supply/intents \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"asset":"CKB","amount":100}'
+```
+
+Settle the intent after the wallet signs/broadcasts the CKB transaction:
 
 ```bash
 curl -X POST http://localhost:8080/deposits \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"asset":"CKB","amount":100,"tx_hash":"0x...","signed_tx":{"inputs":[],"outputs":[],"witnesses":["0x..."]}}'
+  -d '{"asset":"CKB","amount":100,"intent_id":"...","tx_hash":"0x...","signed_tx":{"inputs":[],"outputs":[],"witnesses":["0x..."]}}'
 ```
+
+LP positions, capacity reservations, withdrawal intents, and fee-claim intents are returned by `GET /dashboard`.
 
 ## Tests
 

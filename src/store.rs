@@ -8,10 +8,13 @@ use uuid::Uuid;
 
 use crate::{
     domain::{
-        ActivityEvent, AuthChallenge, AuthResponse, ChallengeRequest, ChallengeResponse, CkbScript,
-        ConnectWalletRequest, CreateDepositRequest, CreateLiquidityRequest, Dashboard, Deposit,
-        LiquidityQuote, LiquidityRequest, LiquidityStatus, User, UserProfile, UserRole,
-        VaultConfig, VaultSummary, VerifyWalletRequest,
+        ActivityEvent, AuthChallenge, AuthResponse, CapacityReservation, ChallengeRequest,
+        ChallengeResponse, CkbScript, ConnectWalletRequest, CreateDepositRequest,
+        CreateFeeClaimRequest, CreateLiquidityRequest, CreateSupplyIntentRequest,
+        CreateWithdrawalIntentRequest, Dashboard, Deposit, FeeClaim, IntentStatus, LiquidityQuote,
+        LiquidityRequest, LiquidityStatus, LpPosition, PositionStatus, ReservationStatus,
+        SettleWithdrawalRequest, SupplyIntent, User, UserProfile, UserRole, VaultConfig,
+        VaultSummary, VerifyWalletRequest, WithdrawalIntent,
     },
     fiber::FiberClient,
 };
@@ -28,6 +31,16 @@ struct StoreState {
     users: Vec<User>,
     challenges: Vec<AuthChallenge>,
     deposits: Vec<Deposit>,
+    #[serde(default)]
+    supply_intents: Vec<SupplyIntent>,
+    #[serde(default)]
+    lp_positions: Vec<LpPosition>,
+    #[serde(default)]
+    withdrawal_intents: Vec<WithdrawalIntent>,
+    #[serde(default)]
+    fee_claims: Vec<FeeClaim>,
+    #[serde(default)]
+    capacity_reservations: Vec<CapacityReservation>,
     liquidity_requests: Vec<LiquidityRequest>,
     events: Vec<ActivityEvent>,
 }
@@ -57,6 +70,13 @@ impl AppStore {
                 address: Some("ckt1qpkp7liquidlanevault000000000000000000000000000".to_string()),
                 network: "testnet".to_string(),
                 configured: true,
+                scripts: crate::domain::VaultScripts {
+                    vault_lock_code_hash: None,
+                    vault_type_code_hash: None,
+                    lp_receipt_type_code_hash: None,
+                    request_type_code_hash: None,
+                    fee_claim_type_code_hash: None,
+                },
             },
             inner: RwLock::new(StoreState::default()),
         }
@@ -273,9 +293,208 @@ Only sign this message for LiquidLane.",
             user: UserProfile::from(user),
             vault: state.vault_summary(&self.vault, asset),
             deposits: state.visible_deposits(user),
+            positions: state.visible_positions(user),
             liquidity_requests: state.visible_liquidity_requests(user),
+            reservations: state.visible_reservations(user),
+            withdrawals: state.visible_withdrawals(user),
+            fee_claims: state.visible_fee_claims(user),
             activity: state.visible_activity(user),
         }
+    }
+
+    pub async fn create_supply_intent(
+        &self,
+        user: &User,
+        request: CreateSupplyIntentRequest,
+    ) -> Result<SupplyIntent> {
+        require_role(user, &[UserRole::Lp, UserRole::Operator])?;
+        ensure_vault_configured(&self.vault)?;
+        validate_amount(request.amount)?;
+        validate_required("asset", &request.asset)?;
+        let asset = normalize_asset(&request.asset);
+        if asset != self.vault.asset {
+            return Err(anyhow!(
+                "supply asset must match the active {} vault",
+                self.vault.asset
+            ));
+        }
+
+        let now = Utc::now();
+        let id = Uuid::new_v4();
+        let intent = SupplyIntent {
+            id,
+            lp_id: user.id,
+            lp_name: user.display_name.clone(),
+            ckb_address: user.ckb_address.clone(),
+            asset,
+            amount: request.amount,
+            vault_address: self.vault.address.clone().expect("vault configured"),
+            receipt_cell_id: receipt_cell_id(id),
+            memo: format!("LL_SUPPLY:{id}:{}:{}", self.vault.asset, request.amount),
+            status: IntentStatus::PendingSignature,
+            tx_hash: None,
+            created_at: now,
+            expires_at: now + Duration::minutes(15),
+        };
+
+        let mut state = self.inner.write().await;
+        state.supply_intents.push(intent.clone());
+        self.persist_locked(&state).await?;
+        Ok(intent)
+    }
+
+    pub async fn create_withdrawal_intent(
+        &self,
+        user: &User,
+        request: CreateWithdrawalIntentRequest,
+    ) -> Result<WithdrawalIntent> {
+        require_role(user, &[UserRole::Lp, UserRole::Operator])?;
+        validate_amount(request.amount)?;
+        let mut state = self.inner.write().await;
+        let position = state
+            .lp_positions
+            .iter()
+            .find(|position| position.id == request.position_id)
+            .ok_or_else(|| anyhow!("LP position not found"))?;
+        if user.role != UserRole::Operator && position.lp_id != user.id {
+            return Err(anyhow!("you can only withdraw your own LP position"));
+        }
+        if position.status != PositionStatus::Active {
+            return Err(anyhow!("LP position is not active"));
+        }
+        if position.available_amount < request.amount {
+            return Err(anyhow!(
+                "only {} {} is available to withdraw",
+                position.available_amount,
+                position.asset
+            ));
+        }
+
+        let now = Utc::now();
+        let id = Uuid::new_v4();
+        let intent = WithdrawalIntent {
+            id,
+            lp_id: position.lp_id,
+            lp_name: position.lp_name.clone(),
+            ckb_address: position.ckb_address.clone(),
+            position_id: position.id,
+            asset: position.asset.clone(),
+            amount: request.amount,
+            receipt_cell_id: position.receipt_cell_id.clone(),
+            memo: format!("LL_WITHDRAW:{id}:{}:{}", position.asset, request.amount),
+            status: IntentStatus::PendingSignature,
+            tx_hash: None,
+            created_at: now,
+            expires_at: now + Duration::minutes(15),
+        };
+        state.withdrawal_intents.push(intent.clone());
+        self.persist_locked(&state).await?;
+        Ok(intent)
+    }
+
+    pub async fn settle_withdrawal(
+        &self,
+        user: &User,
+        id: Uuid,
+        request: SettleWithdrawalRequest,
+    ) -> Result<WithdrawalIntent> {
+        require_role(user, &[UserRole::Lp, UserRole::Operator])?;
+        validate_transaction_proof(&request.tx_hash, &request.signed_tx)?;
+        let tx_hash = normalize_transaction_hash(&request.tx_hash, &request.signed_tx)
+            .ok_or_else(|| anyhow!("withdrawal settlement requires tx_hash"))?;
+
+        let mut state = self.inner.write().await;
+        let intent_index = state
+            .withdrawal_intents
+            .iter()
+            .position(|intent| intent.id == id)
+            .ok_or_else(|| anyhow!("withdrawal intent not found"))?;
+        let intent = state.withdrawal_intents[intent_index].clone();
+        if user.role != UserRole::Operator && intent.lp_id != user.id {
+            return Err(anyhow!("you can only settle your own withdrawal"));
+        }
+        validate_pending_intent(&intent.status, intent.expires_at)?;
+
+        let position = state
+            .lp_positions
+            .iter_mut()
+            .find(|position| position.id == intent.position_id)
+            .ok_or_else(|| anyhow!("LP position not found"))?;
+        if position.available_amount < intent.amount {
+            return Err(anyhow!(
+                "withdrawal intent exceeds available position balance"
+            ));
+        }
+        position.available_amount -= intent.amount;
+        position.supplied_amount -= intent.amount;
+        position.updated_at = Utc::now();
+        if position.supplied_amount == 0 {
+            position.status = PositionStatus::Closed;
+        }
+
+        state.withdrawal_intents[intent_index].status = IntentStatus::Settled;
+        state.withdrawal_intents[intent_index].tx_hash = Some(tx_hash.clone());
+        let settled = state.withdrawal_intents[intent_index].clone();
+        state.events.insert(
+            0,
+            ActivityEvent {
+                id: Uuid::new_v4(),
+                actor_id: user.id,
+                label: format!(
+                    "{} withdrew liquidity from the {} vault",
+                    user.display_name, settled.asset
+                ),
+                amount: Some(settled.amount),
+                asset: Some(settled.asset.clone()),
+                created_at: Utc::now(),
+            },
+        );
+        self.persist_locked(&state).await?;
+        Ok(settled)
+    }
+
+    pub async fn create_fee_claim(
+        &self,
+        user: &User,
+        request: CreateFeeClaimRequest,
+    ) -> Result<FeeClaim> {
+        require_role(user, &[UserRole::Lp, UserRole::Operator])?;
+        validate_amount(request.amount)?;
+        let mut state = self.inner.write().await;
+        let position = state
+            .lp_positions
+            .iter()
+            .find(|position| position.id == request.position_id)
+            .ok_or_else(|| anyhow!("LP position not found"))?;
+        if user.role != UserRole::Operator && position.lp_id != user.id {
+            return Err(anyhow!("you can only claim fees for your own LP position"));
+        }
+        let claimable = position.fees_earned.saturating_sub(position.fees_claimed);
+        if claimable < request.amount {
+            return Err(anyhow!(
+                "only {} {} is claimable",
+                claimable,
+                position.asset
+            ));
+        }
+
+        let now = Utc::now();
+        let id = Uuid::new_v4();
+        let claim = FeeClaim {
+            id,
+            lp_id: position.lp_id,
+            position_id: position.id,
+            asset: position.asset.clone(),
+            amount: request.amount,
+            memo: format!("LL_FEE_CLAIM:{id}:{}:{}", position.asset, request.amount),
+            status: IntentStatus::PendingSignature,
+            tx_hash: None,
+            created_at: now,
+            expires_at: now + Duration::minutes(15),
+        };
+        state.fee_claims.push(claim.clone());
+        self.persist_locked(&state).await?;
+        Ok(claim)
     }
 
     pub async fn quote(
@@ -324,8 +543,28 @@ Only sign this message for LiquidLane.",
             ));
         }
         validate_deposit_transaction(&request)?;
-        let tx_hash = normalize_deposit_tx_hash(&request);
+        let tx_hash = normalize_deposit_tx_hash(&request)
+            .ok_or_else(|| anyhow!("supply settlement requires tx_hash"))?;
+        let intent_id = request
+            .intent_id
+            .ok_or_else(|| anyhow!("supply settlement requires intent_id"))?;
 
+        let mut state = self.inner.write().await;
+        let intent_index = state
+            .supply_intents
+            .iter()
+            .position(|intent| intent.id == intent_id)
+            .ok_or_else(|| anyhow!("supply intent not found"))?;
+        let intent = state.supply_intents[intent_index].clone();
+        if user.role != UserRole::Operator && intent.lp_id != user.id {
+            return Err(anyhow!("you can only settle your own supply intent"));
+        }
+        validate_pending_intent(&intent.status, intent.expires_at)?;
+        if intent.asset != asset || intent.amount != request.amount {
+            return Err(anyhow!("supply settlement does not match the intent"));
+        }
+
+        let now = Utc::now();
         let deposit = Deposit {
             id: Uuid::new_v4(),
             lp_id: user.id,
@@ -333,12 +572,31 @@ Only sign this message for LiquidLane.",
             ckb_address: user.ckb_address.clone(),
             asset,
             amount: request.amount,
-            tx_hash,
+            tx_hash: Some(tx_hash.clone()),
             signed_tx: request.signed_tx,
-            created_at: Utc::now(),
+            created_at: now,
+        };
+        let position = LpPosition {
+            id: Uuid::new_v4(),
+            lp_id: user.id,
+            lp_name: user.display_name.clone(),
+            ckb_address: user.ckb_address.clone(),
+            asset: deposit.asset.clone(),
+            supplied_amount: deposit.amount,
+            available_amount: deposit.amount,
+            reserved_amount: 0,
+            deployed_amount: 0,
+            fees_earned: 0,
+            fees_claimed: 0,
+            receipt_cell_id: intent.receipt_cell_id.clone(),
+            supply_tx_hash: tx_hash.clone(),
+            status: PositionStatus::Active,
+            created_at: now,
+            updated_at: now,
         };
 
-        let mut state = self.inner.write().await;
+        state.supply_intents[intent_index].status = IntentStatus::Settled;
+        state.supply_intents[intent_index].tx_hash = Some(tx_hash);
         state.events.insert(
             0,
             ActivityEvent {
@@ -353,6 +611,7 @@ Only sign this message for LiquidLane.",
                 created_at: deposit.created_at,
             },
         );
+        state.lp_positions.push(position);
         state.deposits.push(deposit.clone());
         self.persist_locked(&state).await?;
 
@@ -407,6 +666,26 @@ Only sign this message for LiquidLane.",
         {
             return Err(anyhow!("liquidity was just reserved by another request"));
         }
+        reserve_positions(
+            &mut state.lp_positions,
+            &liquidity_request.asset,
+            liquidity_request.amount,
+            now,
+        )?;
+        let reservation = CapacityReservation {
+            id: Uuid::new_v4(),
+            request_id: liquidity_request.id,
+            merchant_id: user.id,
+            merchant_name: user.display_name.clone(),
+            ckb_address: user.ckb_address.clone(),
+            asset: liquidity_request.asset.clone(),
+            amount: liquidity_request.amount,
+            lease_fee: liquidity_request.lease_fee,
+            request_cell_id: request_cell_id(liquidity_request.id),
+            status: ReservationStatus::Reserved,
+            created_at: now,
+            updated_at: now,
+        };
         state.events.insert(
             0,
             ActivityEvent {
@@ -418,6 +697,7 @@ Only sign this message for LiquidLane.",
                 created_at: now,
             },
         );
+        state.capacity_reservations.push(reservation);
         state.liquidity_requests.push(liquidity_request.clone());
         self.persist_locked(&state).await?;
 
@@ -478,6 +758,46 @@ Only sign this message for LiquidLane.",
         }
 
         let updated = request.clone();
+        if let Some(reservation) = state
+            .capacity_reservations
+            .iter_mut()
+            .find(|reservation| reservation.request_id == updated.id)
+        {
+            reservation.updated_at = now;
+            match updated.status {
+                LiquidityStatus::PendingFiberChannel | LiquidityStatus::ChannelOpen => {
+                    reservation.status = ReservationStatus::Deployed;
+                    deploy_reserved_positions(
+                        &mut state.lp_positions,
+                        &updated.asset,
+                        updated.amount,
+                        updated.lease_fee,
+                        now,
+                    )?;
+                    state.events.insert(
+                        0,
+                        ActivityEvent {
+                            id: Uuid::new_v4(),
+                            actor_id: user.id,
+                            label: "Lease fee distributed to LP positions".to_string(),
+                            amount: Some(updated.lease_fee),
+                            asset: Some(updated.asset.clone()),
+                            created_at: now,
+                        },
+                    );
+                }
+                LiquidityStatus::Failed => {
+                    reservation.status = ReservationStatus::Failed;
+                    release_reserved_positions(
+                        &mut state.lp_positions,
+                        &updated.asset,
+                        updated.amount,
+                        now,
+                    )?;
+                }
+                LiquidityStatus::Requested => {}
+            }
+        }
         state.events.insert(
             0,
             ActivityEvent {
@@ -509,19 +829,30 @@ Only sign this message for LiquidLane.",
 
 impl StoreState {
     fn vault_summary(&self, vault: &VaultConfig, asset: String) -> VaultSummary {
-        let total_deposits = self
-            .deposits
+        let active_positions = self.lp_positions.iter().filter(|position| {
+            position.asset == asset && position.status == PositionStatus::Active
+        });
+        let total_deposits = active_positions
+            .clone()
+            .map(|position| position.supplied_amount)
+            .sum::<u64>();
+        let available_liquidity = self
+            .lp_positions
             .iter()
-            .filter(|deposit| deposit.asset == asset && is_verified_deposit(deposit))
-            .map(|deposit| deposit.amount)
+            .filter(|position| position.asset == asset && position.status == PositionStatus::Active)
+            .map(|position| position.available_amount)
             .sum::<u64>();
         let reserved_liquidity = self
-            .liquidity_requests
+            .lp_positions
             .iter()
-            .filter(|request| {
-                request.asset == asset && request.status == LiquidityStatus::Requested
-            })
-            .map(|request| request.amount)
+            .filter(|position| position.asset == asset && position.status == PositionStatus::Active)
+            .map(|position| position.reserved_amount)
+            .sum::<u64>();
+        let deployed_liquidity = self
+            .lp_positions
+            .iter()
+            .filter(|position| position.asset == asset && position.status == PositionStatus::Active)
+            .map(|position| position.deployed_amount)
             .sum::<u64>();
         let pending_channel_liquidity = self
             .liquidity_requests
@@ -531,41 +862,30 @@ impl StoreState {
             })
             .map(|request| request.amount)
             .sum::<u64>();
-        let deployed_liquidity = self
-            .liquidity_requests
-            .iter()
-            .filter(|request| {
-                request.asset == asset && request.status == LiquidityStatus::ChannelOpen
-            })
-            .map(|request| request.amount)
-            .sum::<u64>();
         let fees_earned = self
-            .liquidity_requests
+            .lp_positions
             .iter()
-            .filter(|request| {
-                request.asset == asset && request.status == LiquidityStatus::ChannelOpen
-            })
-            .map(|request| request.lease_fee)
+            .filter(|position| position.asset == asset && position.status == PositionStatus::Active)
+            .map(|position| position.fees_earned)
             .sum::<u64>();
         let lp_count = self
-            .deposits
+            .lp_positions
             .iter()
-            .filter(|deposit| deposit.asset == asset && is_verified_deposit(deposit))
-            .map(|deposit| deposit.lp_id)
+            .filter(|position| position.asset == asset && position.status == PositionStatus::Active)
+            .map(|position| position.lp_id)
             .collect::<HashSet<_>>()
             .len();
         let active_requests = self
-            .liquidity_requests
+            .capacity_reservations
             .iter()
-            .filter(|request| {
-                request.asset == asset
+            .filter(|reservation| {
+                reservation.asset == asset
                     && matches!(
-                        request.status,
-                        LiquidityStatus::Requested | LiquidityStatus::PendingFiberChannel
+                        reservation.status,
+                        ReservationStatus::Reserved | ReservationStatus::Deployed
                     )
             })
             .count();
-        let used = reserved_liquidity + pending_channel_liquidity + deployed_liquidity;
 
         VaultSummary {
             asset,
@@ -576,7 +896,7 @@ impl StoreState {
             reserved_liquidity,
             pending_channel_liquidity,
             deployed_liquidity,
-            available_liquidity: total_deposits.saturating_sub(used),
+            available_liquidity,
             fees_earned,
             lp_count,
             active_requests,
@@ -595,6 +915,54 @@ impl StoreState {
                 .deposits
                 .iter()
                 .filter(|deposit| deposit.lp_id == user.id && is_verified_deposit(deposit))
+                .cloned()
+                .collect(),
+        }
+    }
+
+    fn visible_positions(&self, user: &User) -> Vec<LpPosition> {
+        match user.role {
+            UserRole::Operator | UserRole::Merchant => self.lp_positions.clone(),
+            UserRole::Lp => self
+                .lp_positions
+                .iter()
+                .filter(|position| position.lp_id == user.id)
+                .cloned()
+                .collect(),
+        }
+    }
+
+    fn visible_reservations(&self, user: &User) -> Vec<CapacityReservation> {
+        match user.role {
+            UserRole::Operator | UserRole::Lp => self.capacity_reservations.clone(),
+            UserRole::Merchant => self
+                .capacity_reservations
+                .iter()
+                .filter(|reservation| reservation.merchant_id == user.id)
+                .cloned()
+                .collect(),
+        }
+    }
+
+    fn visible_withdrawals(&self, user: &User) -> Vec<WithdrawalIntent> {
+        match user.role {
+            UserRole::Operator => self.withdrawal_intents.clone(),
+            _ => self
+                .withdrawal_intents
+                .iter()
+                .filter(|intent| intent.lp_id == user.id)
+                .cloned()
+                .collect(),
+        }
+    }
+
+    fn visible_fee_claims(&self, user: &User) -> Vec<FeeClaim> {
+        match user.role {
+            UserRole::Operator => self.fee_claims.clone(),
+            _ => self
+                .fee_claims
+                .iter()
+                .filter(|claim| claim.lp_id == user.id)
                 .cloned()
                 .collect(),
         }
@@ -625,6 +993,176 @@ impl StoreState {
             .cloned()
             .collect()
     }
+}
+
+fn ensure_vault_configured(vault: &VaultConfig) -> Result<()> {
+    if !vault.configured
+        || vault
+            .address
+            .as_deref()
+            .unwrap_or_default()
+            .trim()
+            .is_empty()
+    {
+        return Err(anyhow!("active vault address is not configured"));
+    }
+    Ok(())
+}
+
+fn validate_pending_intent(status: &IntentStatus, expires_at: chrono::DateTime<Utc>) -> Result<()> {
+    if status != &IntentStatus::PendingSignature {
+        return Err(anyhow!("intent is not pending signature"));
+    }
+    if expires_at < Utc::now() {
+        return Err(anyhow!("intent has expired"));
+    }
+    Ok(())
+}
+
+fn receipt_cell_id(id: Uuid) -> String {
+    format!("ll-receipt-{id}")
+}
+
+fn request_cell_id(id: Uuid) -> String {
+    format!("ll-request-{id}")
+}
+
+fn reserve_positions(
+    positions: &mut [LpPosition],
+    asset: &str,
+    mut amount: u64,
+    now: chrono::DateTime<Utc>,
+) -> Result<()> {
+    for position in positions
+        .iter_mut()
+        .filter(|position| position.asset == asset && position.status == PositionStatus::Active)
+    {
+        if amount == 0 {
+            break;
+        }
+        let taken = position.available_amount.min(amount);
+        if taken == 0 {
+            continue;
+        }
+        position.available_amount -= taken;
+        position.reserved_amount += taken;
+        position.updated_at = now;
+        amount -= taken;
+    }
+    if amount > 0 {
+        return Err(anyhow!("liquidity was just reserved by another request"));
+    }
+    Ok(())
+}
+
+fn deploy_reserved_positions(
+    positions: &mut [LpPosition],
+    asset: &str,
+    mut amount: u64,
+    lease_fee: u64,
+    now: chrono::DateTime<Utc>,
+) -> Result<()> {
+    let total_amount = amount.max(1);
+    let mut undistributed_fee = lease_fee;
+
+    for position in positions
+        .iter_mut()
+        .filter(|position| position.asset == asset && position.status == PositionStatus::Active)
+    {
+        if amount == 0 {
+            break;
+        }
+        let moved = position.reserved_amount.min(amount);
+        if moved == 0 {
+            continue;
+        }
+        let fee_share = if amount == moved {
+            undistributed_fee
+        } else {
+            lease_fee
+                .saturating_mul(moved)
+                .saturating_div(total_amount)
+                .min(undistributed_fee)
+        };
+
+        position.reserved_amount -= moved;
+        position.deployed_amount += moved;
+        position.fees_earned += fee_share;
+        position.updated_at = now;
+        amount -= moved;
+        undistributed_fee = undistributed_fee.saturating_sub(fee_share);
+    }
+    if amount > 0 {
+        return Err(anyhow!("reserved liquidity accounting is incomplete"));
+    }
+    Ok(())
+}
+
+fn release_reserved_positions(
+    positions: &mut [LpPosition],
+    asset: &str,
+    mut amount: u64,
+    now: chrono::DateTime<Utc>,
+) -> Result<()> {
+    for position in positions
+        .iter_mut()
+        .filter(|position| position.asset == asset && position.status == PositionStatus::Active)
+    {
+        if amount == 0 {
+            break;
+        }
+        let released = position.reserved_amount.min(amount);
+        if released == 0 {
+            continue;
+        }
+        position.reserved_amount -= released;
+        position.available_amount += released;
+        position.updated_at = now;
+        amount -= released;
+    }
+    if amount > 0 {
+        return Err(anyhow!("reserved liquidity accounting is incomplete"));
+    }
+    Ok(())
+}
+
+fn validate_transaction_proof(
+    tx_hash: &Option<String>,
+    signed_tx: &Option<serde_json::Value>,
+) -> Result<()> {
+    if let Some(tx_hash) = normalize_transaction_hash(tx_hash, signed_tx).as_deref() {
+        validate_tx_hash(tx_hash)?;
+    }
+    let signed_tx = signed_tx
+        .as_ref()
+        .ok_or_else(|| anyhow!("signed CKB transaction proof is required"))?;
+    if !signed_tx.is_object() {
+        return Err(anyhow!("signed_tx must be a CKB transaction object"));
+    }
+    for field in ["inputs", "outputs", "witnesses"] {
+        let value = signed_tx
+            .get(field)
+            .ok_or_else(|| anyhow!("signed_tx.{field} is required"))?;
+        if !value.is_array() {
+            return Err(anyhow!("signed_tx.{field} must be an array"));
+        }
+    }
+    Ok(())
+}
+
+fn normalize_transaction_hash(
+    tx_hash: &Option<String>,
+    signed_tx: &Option<serde_json::Value>,
+) -> Option<String> {
+    normalize_optional(tx_hash).or_else(|| {
+        signed_tx
+            .as_ref()
+            .and_then(|tx| tx.get("hash"))
+            .and_then(|hash| hash.as_str())
+            .map(str::trim)
+            .filter(|hash| !hash.is_empty())
+            .map(str::to_string)
+    })
 }
 
 fn is_verified_deposit(deposit: &Deposit) -> bool {
