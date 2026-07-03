@@ -10,7 +10,8 @@ Public confirmation requires CKB testnet deployment. LiquidLane scripts are CKB 
 
 Fiber channel activity is not the same thing as script deployment. Fiber is the payment-channel layer; the on-chain deployment, funding, and settlement records still resolve back to CKB testnet transactions and cells. Use the CKB testnet explorer as the source of truth for deployed LiquidLane scripts:
 
-- CKB testnet explorer: https://explorer.nervos.org/aggron/
+- CKB testnet explorer: https://pudge.explorer.nervos.org/
+- CKB testnet RPC: https://testnet.ckb.dev/rpc
 - Fiber network source: https://github.com/nervosnetwork/fiber
 
 ## Build Artifacts
@@ -65,7 +66,7 @@ After deployment, fill a non-secret record under `ckb-scripts/deployments/`, for
 ```json
 {
   "network": "ckb-testnet",
-  "explorer_base_url": "https://explorer.nervos.org/aggron",
+  "explorer_base_url": "https://pudge.explorer.nervos.org",
   "scripts": [
     {
       "name": "liquidlane-vault-lock",
@@ -78,7 +79,7 @@ After deployment, fill a non-secret record under `ckb-scripts/deployments/`, for
       "hash_type": "data1",
       "script_args": "0x...",
       "script_hash": "0x...",
-      "explorer_url": "https://explorer.nervos.org/aggron/transaction/0x..."
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0x..."
     }
   ],
   "vault": {
@@ -97,7 +98,7 @@ After deployment, fill a non-secret record under `ckb-scripts/deployments/`, for
 For real settlement verification, run Core with:
 
 ```bash
-LIQUIDLANE_CKB_RPC_URL=https://your-testnet-node.example \
+LIQUIDLANE_CKB_RPC_URL=https://testnet.ckb.dev/rpc \
 LIQUIDLANE_REQUIRE_CKB_RPC=true \
 LIQUIDLANE_CKB_ACCEPT_PENDING_TXS=false \
 cargo run

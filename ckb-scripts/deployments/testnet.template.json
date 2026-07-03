@@ -3,7 +3,7 @@
   "recorded_at": "YYYY-MM-DD",
   "network": "ckb-testnet",
   "public_explorer": true,
-  "explorer_base_url": "https://explorer.nervos.org/aggron",
+  "explorer_base_url": "https://pudge.explorer.nervos.org",
   "deployment_status": "deployed",
   "deployer_address": "ckt1...",
   "scripts": [
@@ -19,7 +19,7 @@
       "script_args": "0x...",
       "script_hash": "0x...",
       "contract_address_equivalent": null,
-      "explorer_url": "https://explorer.nervos.org/aggron/transaction/0x..."
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0x..."
     }
   ],
   "vault": {
@@ -30,7 +30,7 @@
     },
     "vault_lock_script_hash": "0x...",
     "vault_type_script_hash": "0x...",
-    "explorer_url": "https://explorer.nervos.org/aggron/transaction/0x..."
+    "explorer_url": "https://pudge.explorer.nervos.org/transaction/0x..."
   },
   "runtime_env": {
     "LIQUIDLANE_CKB_RPC_URL": "https://...",

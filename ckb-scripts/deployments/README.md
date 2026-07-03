@@ -29,7 +29,7 @@ CKB does not primarily identify deployed scripts by an EVM-style contract addres
 Use the CKB testnet explorer for public confirmation:
 
 ```text
-https://explorer.nervos.org/aggron/
+https://pudge.explorer.nervos.org/
 ```
 
 Fiber channel operations are payment-channel activity. The LiquidLane script deployment itself is a CKB L1 deployment, so the public proof lives in CKB testnet transactions and cells.
