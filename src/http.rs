@@ -13,7 +13,8 @@ use uuid::Uuid;
 
 use crate::{
     domain::{
-        ChallengeRequest, CreateDepositRequest, CreateLiquidityRequest, User, VerifyWalletRequest,
+        ChallengeRequest, ConnectWalletRequest, CreateDepositRequest, CreateLiquidityRequest, User,
+        VerifyWalletRequest,
     },
     store::AppStore,
 };
@@ -28,6 +29,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/auth/challenge", post(create_challenge))
+        .route("/auth/connect", post(connect_wallet))
         .route("/auth/verify", post(verify_wallet))
         .route("/me", get(me))
         .route("/dashboard", get(dashboard))
@@ -62,6 +64,16 @@ async fn create_challenge(
     Ok((
         StatusCode::CREATED,
         Json(state.store.create_challenge(request).await?),
+    ))
+}
+
+async fn connect_wallet(
+    State(state): State<AppState>,
+    Json(request): Json<ConnectWalletRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok((
+        StatusCode::CREATED,
+        Json(state.store.connect_wallet(request).await?),
     ))
 }
 
@@ -221,47 +233,17 @@ mod tests {
     }
 
     async fn auth_token(app: Router, name: &str, role: &str, ckb_address: &str) -> String {
-        let challenge_response = app
-            .clone()
+        let connect_response = app
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/auth/challenge")
+                    .uri("/auth/connect")
                     .header(header::CONTENT_TYPE, "application/json")
                     .body(Body::from(
                         json!({
                             "ckb_address": ckb_address,
                             "wallet_type": "joyid_ckb",
-                            "role": role
-                        })
-                        .to_string(),
-                    ))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(challenge_response.status(), StatusCode::CREATED);
-        let body = challenge_response
-            .into_body()
-            .collect()
-            .await
-            .unwrap()
-            .to_bytes();
-        let challenge: serde_json::Value = serde_json::from_slice(&body).unwrap();
-
-        let verify_response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/auth/verify")
-                    .header(header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(
-                        json!({
-                            "challenge_id": challenge["challenge_id"],
-                            "ckb_address": ckb_address,
-                            "wallet_type": "joyid_ckb",
-                            "signature": "0x11112222333344445555666677778888",
+                            "role": role,
                             "lock_script": {
                                 "code_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
                                 "hash_type": "type",
@@ -276,8 +258,8 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(verify_response.status(), StatusCode::CREATED);
-        let body = verify_response
+        assert_eq!(connect_response.status(), StatusCode::CREATED);
+        let body = connect_response
             .into_body()
             .collect()
             .await
@@ -287,6 +269,19 @@ mod tests {
             .as_str()
             .unwrap()
             .to_string()
+    }
+
+    fn signed_tx_fixture() -> serde_json::Value {
+        json!({
+            "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+            "cellDeps": [],
+            "headerDeps": [],
+            "inputs": [{"previousOutput":{"txHash":"0x2222222222222222222222222222222222222222222222222222222222222222","index":"0x0"},"since":"0x0"}],
+            "outputs": [{"capacity":"0x174876e800","lock":{"codeHash":"0x3333333333333333333333333333333333333333333333333333333333333333","hashType":"type","args":"0x1234"}}],
+            "outputsData": ["0x"],
+            "version": "0x0",
+            "witnesses": ["0x55000000100000005500000055000000410000001111111122222222333333334444444455555555666666667777777788888888"]
+        })
     }
 
     #[tokio::test]
@@ -302,6 +297,35 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn lp_deposit_requires_signed_transaction_proof() {
+        let app = test_app();
+        let lp_token = auth_token(
+            app.clone(),
+            "Atlas LP",
+            "lp",
+            "ckt1qyq000000000000000000000000000000000000lp",
+        )
+        .await;
+
+        let deposit_response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/deposits")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::AUTHORIZATION, format!("Bearer {lp_token}"))
+                    .body(Body::from(
+                        json!({"asset":"USDC","amount":5000}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(deposit_response.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
@@ -331,7 +355,13 @@ mod tests {
                     .header(header::CONTENT_TYPE, "application/json")
                     .header(header::AUTHORIZATION, format!("Bearer {lp_token}"))
                     .body(Body::from(
-                        json!({"asset":"USDC","amount":5000}).to_string(),
+                        json!({
+                            "asset":"USDC",
+                            "amount":5000,
+                            "tx_hash":"0x1111111111111111111111111111111111111111111111111111111111111111",
+                            "signed_tx": signed_tx_fixture()
+                        })
+                        .to_string(),
                     ))
                     .unwrap(),
             )

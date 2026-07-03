@@ -9,9 +9,9 @@ use uuid::Uuid;
 use crate::{
     domain::{
         ActivityEvent, AuthChallenge, AuthResponse, ChallengeRequest, ChallengeResponse, CkbScript,
-        CreateDepositRequest, CreateLiquidityRequest, Dashboard, Deposit, LiquidityQuote,
-        LiquidityRequest, LiquidityStatus, User, UserProfile, UserRole, VaultSummary,
-        VerifyWalletRequest,
+        ConnectWalletRequest, CreateDepositRequest, CreateLiquidityRequest, Dashboard, Deposit,
+        LiquidityQuote, LiquidityRequest, LiquidityStatus, User, UserProfile, UserRole,
+        VaultSummary, VerifyWalletRequest,
     },
     fiber::FiberClient,
 };
@@ -94,6 +94,67 @@ Only sign this message for LiquidLane.",
             challenge_id,
             message,
             expires_at,
+        })
+    }
+
+    pub async fn connect_wallet(&self, request: ConnectWalletRequest) -> Result<AuthResponse> {
+        let ckb_address = normalize_ckb_address(&request.ckb_address)?;
+        let wallet_type = normalize_wallet_type(&request.wallet_type)?;
+        if let Some(script) = request.lock_script.as_ref() {
+            validate_script(script)?;
+        }
+
+        let now = Utc::now();
+        let display_name = request
+            .display_name
+            .filter(|name| !name.trim().is_empty())
+            .unwrap_or_else(|| short_ckb_address(&ckb_address));
+        let mut state = self.inner.write().await;
+        let user_index = state
+            .users
+            .iter()
+            .position(|user| user.ckb_address == ckb_address && user.wallet_type == wallet_type);
+
+        let user = match user_index {
+            Some(index) => {
+                state.users[index].display_name = display_name.trim().to_string();
+                state.users[index].role = request.role;
+                state.users[index].token = Uuid::new_v4().to_string();
+                state.users[index].lock_script = request.lock_script.clone();
+                state.users[index].clone()
+            }
+            None => {
+                let user = User {
+                    id: Uuid::new_v4(),
+                    display_name: display_name.trim().to_string(),
+                    ckb_address: ckb_address.clone(),
+                    wallet_type: wallet_type.clone(),
+                    lock_script: request.lock_script.clone(),
+                    role: request.role,
+                    token: Uuid::new_v4().to_string(),
+                    created_at: now,
+                };
+                state.users.push(user.clone());
+                user
+            }
+        };
+
+        state.events.insert(
+            0,
+            ActivityEvent {
+                id: Uuid::new_v4(),
+                actor_id: user.id,
+                label: format!("{} opened a wallet session", user.display_name),
+                amount: None,
+                asset: None,
+                created_at: now,
+            },
+        );
+        self.persist_locked(&state).await?;
+
+        Ok(AuthResponse {
+            token: user.token.clone(),
+            user: UserProfile::from(&user),
         })
     }
 
@@ -244,6 +305,8 @@ Only sign this message for LiquidLane.",
         require_role(user, &[UserRole::Lp, UserRole::Operator])?;
         validate_amount(request.amount)?;
         validate_required("asset", &request.asset)?;
+        validate_deposit_transaction(&request)?;
+        let tx_hash = normalize_deposit_tx_hash(&request);
 
         let deposit = Deposit {
             id: Uuid::new_v4(),
@@ -252,7 +315,8 @@ Only sign this message for LiquidLane.",
             ckb_address: user.ckb_address.clone(),
             asset: normalize_asset(&request.asset),
             amount: request.amount,
-            tx_hash: request.tx_hash,
+            tx_hash,
+            signed_tx: request.signed_tx,
             created_at: Utc::now(),
         };
 
@@ -607,6 +671,54 @@ fn normalize_optional(value: &Option<String>) -> Option<String> {
         .as_ref()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+}
+
+fn validate_deposit_transaction(request: &CreateDepositRequest) -> Result<()> {
+    let tx_hash = normalize_deposit_tx_hash(request);
+    if let Some(tx_hash) = tx_hash.as_deref() {
+        validate_tx_hash(tx_hash)?;
+    }
+
+    let signed_tx = request
+        .signed_tx
+        .as_ref()
+        .ok_or_else(|| anyhow!("supply liquidity requires a signed CKB transaction proof"))?;
+    if !signed_tx.is_object() {
+        return Err(anyhow!("signed_tx must be a CKB transaction object"));
+    }
+    for field in ["inputs", "outputs", "witnesses"] {
+        let value = signed_tx
+            .get(field)
+            .ok_or_else(|| anyhow!("signed_tx.{field} is required"))?;
+        if !value.is_array() {
+            return Err(anyhow!("signed_tx.{field} must be an array"));
+        }
+    }
+    let witnesses = signed_tx
+        .get("witnesses")
+        .and_then(|value| value.as_array())
+        .ok_or_else(|| anyhow!("signed_tx.witnesses must be an array"))?;
+    if witnesses.is_empty() {
+        return Err(anyhow!("signed_tx must include at least one witness"));
+    }
+    Ok(())
+}
+
+fn normalize_deposit_tx_hash(request: &CreateDepositRequest) -> Option<String> {
+    normalize_optional(&request.tx_hash).or_else(|| {
+        request
+            .signed_tx
+            .as_ref()
+            .and_then(|tx| tx.get("hash"))
+            .and_then(|hash| hash.as_str())
+            .map(str::trim)
+            .filter(|hash| !hash.is_empty())
+            .map(str::to_string)
+    })
+}
+
+fn validate_tx_hash(tx_hash: &str) -> Result<()> {
+    validate_hex_field("tx_hash", tx_hash, 66)
 }
 
 fn validate_liquidity_request(request: &CreateLiquidityRequest) -> Result<()> {
