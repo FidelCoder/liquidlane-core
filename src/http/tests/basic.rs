@@ -5,8 +5,11 @@ use axum::{
 use http_body_util::BodyExt;
 use serde_json::json;
 use tower::ServiceExt;
+use uuid::Uuid;
 
-use super::support::{auth_token, create_supply_intent, signed_tx_fixture, test_app};
+use super::support::{
+    auth_token, create_supply_intent, signed_tx_fixture, test_app, test_app_with_script_build_dir,
+};
 
 #[tokio::test]
 async fn exposes_active_vault_config() {
@@ -27,6 +30,46 @@ async fn exposes_active_vault_config() {
     assert_eq!(vault["network"], "testnet");
     assert!(vault["configured"].as_bool().unwrap());
     assert!(vault["address"].as_str().unwrap().starts_with("ckt"));
+}
+
+#[tokio::test]
+async fn exposes_ckb_script_deployment_package() {
+    let build_dir =
+        std::env::temp_dir().join(format!("liquidlane-script-package-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&build_dir).unwrap();
+    std::fs::write(build_dir.join("liquidlane-vault-lock"), [1u8, 2, 3]).unwrap();
+    std::fs::write(
+        build_dir.join("manifest.json"),
+        json!({
+            "network": "testnet",
+            "scripts": [{
+                "name": "liquidlane-vault-lock",
+                "path": "ckb-scripts/build/liquidlane-vault-lock",
+                "size_bytes": 3,
+                "ckb_data_hash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "hash_type": "data1"
+            }]
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    let response = test_app_with_script_build_dir(build_dir)
+        .oneshot(
+            Request::builder()
+                .uri("/deployment/package")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let package: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(package["network"], "testnet");
+    assert_eq!(package["scripts"][0]["name"], "liquidlane-vault-lock");
+    assert_eq!(package["scripts"][0]["data_hex"], "0x010203");
 }
 
 #[tokio::test]

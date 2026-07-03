@@ -4,7 +4,7 @@ mod routes;
 #[cfg(test)]
 mod tests;
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use axum::{
     Router,
@@ -22,6 +22,7 @@ pub struct AppState {
     pub environment: String,
     pub store: Arc<AppStore>,
     pub vault: VaultConfig,
+    pub ckb_script_build_dir: PathBuf,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -32,6 +33,7 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/verify", post(routes::verify_wallet))
         .route("/me", get(routes::me))
         .route("/vault", get(routes::vault))
+        .route("/deployment/package", get(routes::deployment_package))
         .route("/vault/supply/intents", post(routes::create_supply_intent))
         .route(
             "/vault/withdrawals/intents",
