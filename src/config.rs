@@ -1,5 +1,7 @@
 use std::{env, net::SocketAddr, path::PathBuf};
 
+use crate::domain::VaultConfig;
+
 #[derive(Clone, Debug)]
 pub struct AppConfig {
     pub bind_addr: SocketAddr,
@@ -7,6 +9,7 @@ pub struct AppConfig {
     pub data_path: PathBuf,
     pub fiber_rpc_url: Option<String>,
     pub fiber_rpc_auth_token: Option<String>,
+    pub vault: VaultConfig,
 }
 
 impl AppConfig {
@@ -24,6 +27,22 @@ impl AppConfig {
         let fiber_rpc_auth_token = env::var("FIBER_RPC_AUTH_TOKEN")
             .ok()
             .filter(|value| !value.trim().is_empty());
+        let vault = VaultConfig {
+            asset: env::var("LIQUIDLANE_VAULT_ASSET")
+                .unwrap_or_else(|_| "CKB".to_string())
+                .trim()
+                .to_uppercase(),
+            address: env::var("LIQUIDLANE_VAULT_CKB_ADDRESS")
+                .unwrap_or_else(|_| {
+                    "ckt1qpkp7liquidlanevault000000000000000000000000000".to_string()
+                })
+                .trim()
+                .to_string(),
+            network: env::var("LIQUIDLANE_CKB_NETWORK")
+                .unwrap_or_else(|_| "testnet".to_string())
+                .trim()
+                .to_lowercase(),
+        };
 
         Ok(Self {
             bind_addr,
@@ -31,6 +50,7 @@ impl AppConfig {
             data_path,
             fiber_rpc_url,
             fiber_rpc_auth_token,
+            vault,
         })
     }
 }

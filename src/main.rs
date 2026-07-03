@@ -25,9 +25,15 @@ async fn main() -> anyhow::Result<()> {
         config.fiber_rpc_url.clone(),
         config.fiber_rpc_auth_token.clone(),
     );
-    let store = AppStore::load(config.data_path.clone(), fiber.clone()).await?;
+    let store = AppStore::load(
+        config.data_path.clone(),
+        fiber.clone(),
+        config.vault.clone(),
+    )
+    .await?;
     let app = router(AppState {
         environment: config.environment.clone(),
+        vault: config.vault.clone(),
         store: Arc::new(store),
     });
     let listener = TcpListener::bind(config.bind_addr).await?;
@@ -37,6 +43,8 @@ async fn main() -> anyhow::Result<()> {
         environment = %config.environment,
         data_path = %config.data_path.display(),
         fiber_rpc_configured = fiber.is_configured(),
+        vault_asset = %config.vault.asset,
+        vault_network = %config.vault.network,
         "starting LiquidLane Core"
     );
 

@@ -14,7 +14,7 @@ use uuid::Uuid;
 use crate::{
     domain::{
         ChallengeRequest, ConnectWalletRequest, CreateDepositRequest, CreateLiquidityRequest, User,
-        VerifyWalletRequest,
+        VaultConfig, VerifyWalletRequest,
     },
     store::AppStore,
 };
@@ -23,6 +23,7 @@ use crate::{
 pub struct AppState {
     pub environment: String,
     pub store: Arc<AppStore>,
+    pub vault: VaultConfig,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -32,6 +33,7 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/connect", post(connect_wallet))
         .route("/auth/verify", post(verify_wallet))
         .route("/me", get(me))
+        .route("/vault", get(vault))
         .route("/dashboard", get(dashboard))
         .route("/deposits", post(create_deposit))
         .route("/liquidity/quote", post(create_quote))
@@ -89,6 +91,10 @@ async fn verify_wallet(
 
 async fn me(AuthedUser(user): AuthedUser) -> impl IntoResponse {
     Json(crate::domain::UserProfile::from(&user))
+}
+
+async fn vault(State(state): State<AppState>) -> Json<VaultConfig> {
+    Json(state.vault.clone())
 }
 
 #[derive(Deserialize)]
@@ -228,6 +234,11 @@ mod tests {
     fn test_app() -> Router {
         router(AppState {
             environment: "test".to_string(),
+            vault: VaultConfig {
+                asset: "CKB".to_string(),
+                address: "ckt1qpkp7liquidlanevault000000000000000000000000000".to_string(),
+                network: "testnet".to_string(),
+            },
             store: Arc::new(AppStore::memory()),
         })
     }
@@ -282,6 +293,26 @@ mod tests {
             "version": "0x0",
             "witnesses": ["0x55000000100000005500000055000000410000001111111122222222333333334444444455555555666666667777777788888888"]
         })
+    }
+
+    #[tokio::test]
+    async fn exposes_active_vault_config() {
+        let response = test_app()
+            .oneshot(
+                Request::builder()
+                    .uri("/vault")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let vault: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(vault["asset"], "CKB");
+        assert_eq!(vault["network"], "testnet");
+        assert!(vault["address"].as_str().unwrap().starts_with("ckt"));
     }
 
     #[tokio::test]
@@ -356,7 +387,7 @@ mod tests {
                     .header(header::AUTHORIZATION, format!("Bearer {lp_token}"))
                     .body(Body::from(
                         json!({
-                            "asset":"USDC",
+                            "asset":"CKB",
                             "amount":5000,
                             "tx_hash":"0x1111111111111111111111111111111111111111111111111111111111111111",
                             "signed_tx": signed_tx_fixture()
@@ -378,7 +409,7 @@ mod tests {
                     .header(header::CONTENT_TYPE, "application/json")
                     .header(header::AUTHORIZATION, format!("Bearer {merchant_token}"))
                     .body(Body::from(
-                        json!({"asset":"USDC","amount":3000,"duration_days":30}).to_string(),
+                        json!({"asset":"CKB","amount":3000,"duration_days":30}).to_string(),
                     ))
                     .unwrap(),
             )

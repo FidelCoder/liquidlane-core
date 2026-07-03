@@ -11,7 +11,7 @@ use crate::{
         ActivityEvent, AuthChallenge, AuthResponse, ChallengeRequest, ChallengeResponse, CkbScript,
         ConnectWalletRequest, CreateDepositRequest, CreateLiquidityRequest, Dashboard, Deposit,
         LiquidityQuote, LiquidityRequest, LiquidityStatus, User, UserProfile, UserRole,
-        VaultSummary, VerifyWalletRequest,
+        VaultConfig, VaultSummary, VerifyWalletRequest,
     },
     fiber::FiberClient,
 };
@@ -19,6 +19,7 @@ use crate::{
 pub struct AppStore {
     path: PathBuf,
     fiber: FiberClient,
+    vault: VaultConfig,
     inner: RwLock<StoreState>,
 }
 
@@ -32,7 +33,7 @@ struct StoreState {
 }
 
 impl AppStore {
-    pub async fn load(path: PathBuf, fiber: FiberClient) -> Result<Self> {
+    pub async fn load(path: PathBuf, fiber: FiberClient, vault: VaultConfig) -> Result<Self> {
         let state = match tokio::fs::read_to_string(&path).await {
             Ok(contents) => serde_json::from_str(&contents)?,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => StoreState::default(),
@@ -42,6 +43,7 @@ impl AppStore {
         Ok(Self {
             path,
             fiber,
+            vault,
             inner: RwLock::new(state),
         })
     }
@@ -50,6 +52,11 @@ impl AppStore {
         Self {
             path: std::env::temp_dir().join(format!("liquidlane-test-{}.json", Uuid::new_v4())),
             fiber: FiberClient::disabled(),
+            vault: VaultConfig {
+                asset: "CKB".to_string(),
+                address: "ckt1qpkp7liquidlanevault000000000000000000000000000".to_string(),
+                network: "testnet".to_string(),
+            },
             inner: RwLock::new(StoreState::default()),
         }
     }
@@ -258,12 +265,12 @@ Only sign this message for LiquidLane.",
     pub async fn dashboard(&self, user: &User, asset: Option<String>) -> Dashboard {
         let state = self.inner.read().await;
         let asset = asset
-            .unwrap_or_else(|| "USDC".to_string())
-            .trim()
-            .to_uppercase();
+            .map(|asset| asset.trim().to_uppercase())
+            .filter(|asset| !asset.is_empty())
+            .unwrap_or_else(|| self.vault.asset.clone());
         Dashboard {
             user: UserProfile::from(user),
-            vault: state.vault_summary(asset),
+            vault: state.vault_summary(&self.vault, asset),
             deposits: state.visible_deposits(user),
             liquidity_requests: state.visible_liquidity_requests(user),
             activity: state.visible_activity(user),
@@ -283,7 +290,7 @@ Only sign this message for LiquidLane.",
             .inner
             .read()
             .await
-            .vault_summary(asset.clone())
+            .vault_summary(&self.vault, asset.clone())
             .available_liquidity;
 
         Ok(LiquidityQuote {
@@ -305,6 +312,13 @@ Only sign this message for LiquidLane.",
         require_role(user, &[UserRole::Lp, UserRole::Operator])?;
         validate_amount(request.amount)?;
         validate_required("asset", &request.asset)?;
+        let asset = normalize_asset(&request.asset);
+        if asset != self.vault.asset {
+            return Err(anyhow!(
+                "supply asset must match the active {} vault",
+                self.vault.asset
+            ));
+        }
         validate_deposit_transaction(&request)?;
         let tx_hash = normalize_deposit_tx_hash(&request);
 
@@ -313,7 +327,7 @@ Only sign this message for LiquidLane.",
             lp_id: user.id,
             lp_name: user.display_name.clone(),
             ckb_address: user.ckb_address.clone(),
-            asset: normalize_asset(&request.asset),
+            asset,
             amount: request.amount,
             tx_hash,
             signed_tx: request.signed_tx,
@@ -326,7 +340,10 @@ Only sign this message for LiquidLane.",
             ActivityEvent {
                 id: Uuid::new_v4(),
                 actor_id: user.id,
-                label: format!("{} deposited vault liquidity", user.display_name),
+                label: format!(
+                    "{} supplied liquidity to the {} vault",
+                    user.display_name, deposit.asset
+                ),
                 amount: Some(deposit.amount),
                 asset: Some(deposit.asset.clone()),
                 created_at: deposit.created_at,
@@ -380,7 +397,7 @@ Only sign this message for LiquidLane.",
 
         let mut state = self.inner.write().await;
         if state
-            .vault_summary(liquidity_request.asset.clone())
+            .vault_summary(&self.vault, liquidity_request.asset.clone())
             .available_liquidity
             < liquidity_request.amount
         {
@@ -487,7 +504,7 @@ Only sign this message for LiquidLane.",
 }
 
 impl StoreState {
-    fn vault_summary(&self, asset: String) -> VaultSummary {
+    fn vault_summary(&self, vault: &VaultConfig, asset: String) -> VaultSummary {
         let total_deposits = self
             .deposits
             .iter()
@@ -548,6 +565,8 @@ impl StoreState {
 
         VaultSummary {
             asset,
+            address: vault.address.clone(),
+            network: vault.network.clone(),
             total_deposits,
             reserved_liquidity,
             pending_channel_liquidity,
@@ -586,15 +605,24 @@ impl StoreState {
     fn visible_activity(&self, user: &User) -> Vec<ActivityEvent> {
         self.events
             .iter()
+            .filter(|event| is_product_activity(event))
             .filter(|event| {
                 user.role == UserRole::Operator
                     || event.actor_id == user.id
                     || event.label.contains("Lease fee")
             })
-            .take(30)
+            .take(15)
             .cloned()
             .collect()
     }
+}
+
+fn is_product_activity(event: &ActivityEvent) -> bool {
+    event.amount.is_some()
+        || event.label.contains("Fiber")
+        || event.label.contains("reserved")
+        || event.label.contains("supplied")
+        || event.label.contains("Lease fee")
 }
 
 fn normalize_ckb_address(ckb_address: &str) -> Result<String> {
