@@ -3,19 +3,18 @@ use chrono::Utc;
 
 use crate::domain::{
     ActivityEvent, CkbScript, CreateDepositRequest, CreateLiquidityRequest, Deposit, IntentStatus,
-    User, UserRole, VaultConfig,
+    User, UserRole, VaultConfig, is_plausible_ckb_address,
 };
 
 pub(super) fn ensure_vault_configured(vault: &VaultConfig) -> Result<()> {
-    if !vault.configured
-        || vault
-            .address
-            .as_deref()
-            .unwrap_or_default()
-            .trim()
-            .is_empty()
-    {
+    let address = vault.address.as_deref().unwrap_or_default().trim();
+    if !vault.configured || address.is_empty() {
         return Err(anyhow!("active vault address is not configured"));
+    }
+    if !is_plausible_ckb_address(address) {
+        return Err(anyhow!(
+            "active vault address is invalid; configure LIQUIDLANE_VAULT_CKB_ADDRESS with a real CKB address"
+        ));
     }
     Ok(())
 }
