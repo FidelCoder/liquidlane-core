@@ -1,0 +1,83 @@
+{
+  "record_type": "local-build-artifacts",
+  "recorded_at": "2026-07-03",
+  "network": "none",
+  "public_explorer": false,
+  "explorer_base_url": null,
+  "deployment_status": "built-not-deployed",
+  "contract_address_equivalent": null,
+  "vault_address": null,
+  "vault_cell_out_point": null,
+  "notes": [
+    "This record captures local RISC-V build artifacts only.",
+    "No local or testnet transaction has been broadcast from this repo.",
+    "CKB deployments are tracked by transaction hashes, cell out-points, code hashes, script args, and script hashes instead of an EVM-style contract address."
+  ],
+  "scripts": [
+    {
+      "name": "liquidlane-vault-lock",
+      "artifact_path": "ckb-scripts/build/liquidlane-vault-lock",
+      "size_bytes": 30864,
+      "ckb_data_hash": "0xb1c0970dbe6e056f87ce6f55c720f7c6d7379aa42ca057743d90f3b567fe0f4b",
+      "hash_type": "data1",
+      "deployment_tx_hash": null,
+      "code_cell_out_point": null,
+      "script_args": null,
+      "script_hash": null,
+      "contract_address_equivalent": null,
+      "explorer_url": null
+    },
+    {
+      "name": "liquidlane-vault-type",
+      "artifact_path": "ckb-scripts/build/liquidlane-vault-type",
+      "size_bytes": 30376,
+      "ckb_data_hash": "0x387a4baada5734d746e576ed9116ce017dac93703e26f1028b51cacad853138c",
+      "hash_type": "data1",
+      "deployment_tx_hash": null,
+      "code_cell_out_point": null,
+      "script_args": null,
+      "script_hash": null,
+      "contract_address_equivalent": null,
+      "explorer_url": null
+    },
+    {
+      "name": "liquidlane-lp-receipt-type",
+      "artifact_path": "ckb-scripts/build/liquidlane-lp-receipt-type",
+      "size_bytes": 31344,
+      "ckb_data_hash": "0x552dae23f3a2c2e82b2d5d9bff4b5c9e9c0c8716e6218542f33ab22de3598288",
+      "hash_type": "data1",
+      "deployment_tx_hash": null,
+      "code_cell_out_point": null,
+      "script_args": null,
+      "script_hash": null,
+      "contract_address_equivalent": null,
+      "explorer_url": null
+    },
+    {
+      "name": "liquidlane-capacity-request-type",
+      "artifact_path": "ckb-scripts/build/liquidlane-capacity-request-type",
+      "size_bytes": 29152,
+      "ckb_data_hash": "0xda8df69831eebf1991f02f8674a20ec6370c3bb1fc14170fec1bee3c1bb46e3a",
+      "hash_type": "data1",
+      "deployment_tx_hash": null,
+      "code_cell_out_point": null,
+      "script_args": null,
+      "script_hash": null,
+      "contract_address_equivalent": null,
+      "explorer_url": null
+    },
+    {
+      "name": "liquidlane-fee-claim-type",
+      "artifact_path": "ckb-scripts/build/liquidlane-fee-claim-type",
+      "size_bytes": 28856,
+      "ckb_data_hash": "0x722b9c2b5c059ce0bc504498c234477e91aca7386d1761b2a7534918c4368ccc",
+      "hash_type": "data1",
+      "deployment_tx_hash": null,
+      "code_cell_out_point": null,
+      "script_args": null,
+      "script_hash": null,
+      "contract_address_equivalent": null,
+      "explorer_url": null
+    }
+  ]
+}
