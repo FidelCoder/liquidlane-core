@@ -6,7 +6,12 @@ use uuid::Uuid;
 pub struct User {
     pub id: Uuid,
     pub display_name: String,
-    pub wallet_address: String,
+    #[serde(alias = "wallet_address")]
+    pub ckb_address: String,
+    #[serde(default = "default_wallet_type")]
+    pub wallet_type: String,
+    #[serde(default)]
+    pub lock_script: Option<CkbScript>,
     pub role: UserRole,
     pub token: String,
     pub created_at: DateTime<Utc>,
@@ -22,7 +27,10 @@ pub enum UserRole {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct ChallengeRequest {
-    pub wallet_address: String,
+    #[serde(alias = "wallet_address")]
+    pub ckb_address: String,
+    #[serde(default = "default_wallet_type")]
+    pub wallet_type: String,
     pub role: UserRole,
 }
 
@@ -36,8 +44,13 @@ pub struct ChallengeResponse {
 #[derive(Clone, Debug, Deserialize)]
 pub struct VerifyWalletRequest {
     pub challenge_id: Uuid,
-    pub wallet_address: String,
+    #[serde(alias = "wallet_address")]
+    pub ckb_address: String,
+    #[serde(default = "default_wallet_type")]
+    pub wallet_type: String,
     pub signature: String,
+    #[serde(default)]
+    pub lock_script: Option<CkbScript>,
     pub display_name: Option<String>,
 }
 
@@ -50,7 +63,10 @@ pub struct AuthResponse {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuthChallenge {
     pub id: Uuid,
-    pub wallet_address: String,
+    #[serde(alias = "wallet_address")]
+    pub ckb_address: String,
+    #[serde(default = "default_wallet_type")]
+    pub wallet_type: String,
     pub role: UserRole,
     pub message: String,
     pub expires_at: DateTime<Utc>,
@@ -61,7 +77,8 @@ pub struct AuthChallenge {
 pub struct UserProfile {
     pub id: Uuid,
     pub display_name: String,
-    pub wallet_address: String,
+    pub ckb_address: String,
+    pub wallet_type: String,
     pub role: UserRole,
 }
 
@@ -70,7 +87,8 @@ impl From<&User> for UserProfile {
         Self {
             id: user.id,
             display_name: user.display_name.clone(),
-            wallet_address: user.wallet_address.clone(),
+            ckb_address: user.ckb_address.clone(),
+            wallet_type: user.wallet_type.clone(),
             role: user.role.clone(),
         }
     }
@@ -90,6 +108,7 @@ pub struct VaultSummary {
     pub asset: String,
     pub total_deposits: u64,
     pub reserved_liquidity: u64,
+    pub pending_channel_liquidity: u64,
     pub deployed_liquidity: u64,
     pub available_liquidity: u64,
     pub fees_earned: u64,
@@ -109,7 +128,8 @@ pub struct Deposit {
     pub id: Uuid,
     pub lp_id: Uuid,
     pub lp_name: String,
-    pub wallet_address: String,
+    #[serde(alias = "wallet_address")]
+    pub ckb_address: String,
     pub asset: String,
     pub amount: u64,
     pub tx_hash: Option<String>,
@@ -121,6 +141,12 @@ pub struct CreateLiquidityRequest {
     pub asset: String,
     pub amount: u64,
     pub duration_days: u16,
+    #[serde(default)]
+    pub fiber_peer_pubkey: Option<String>,
+    #[serde(default)]
+    pub public_channel: Option<bool>,
+    #[serde(default)]
+    pub funding_udt_type_script: Option<CkbScript>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -139,14 +165,27 @@ pub struct LiquidityRequest {
     pub id: Uuid,
     pub merchant_id: Uuid,
     pub merchant_name: String,
-    pub wallet_address: String,
+    #[serde(alias = "wallet_address")]
+    pub ckb_address: String,
     pub asset: String,
     pub amount: u64,
     pub duration_days: u16,
     pub lease_fee: u64,
     pub routing_fee_bps: u16,
+    #[serde(default)]
+    pub fiber_peer_pubkey: Option<String>,
+    #[serde(default = "default_public_channel")]
+    pub public_channel: bool,
+    #[serde(default)]
+    pub funding_udt_type_script: Option<CkbScript>,
     pub status: LiquidityStatus,
+    #[serde(default)]
+    pub fiber_temporary_channel_id: Option<String>,
     pub channel_id: Option<String>,
+    #[serde(default)]
+    pub fiber_note: Option<String>,
+    #[serde(default)]
+    pub fiber_error: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -155,7 +194,10 @@ pub struct LiquidityRequest {
 #[serde(rename_all = "snake_case")]
 pub enum LiquidityStatus {
     Requested,
-    Deployed,
+    PendingFiberChannel,
+    #[serde(alias = "deployed")]
+    ChannelOpen,
+    Failed,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -166,4 +208,19 @@ pub struct ActivityEvent {
     pub amount: Option<u64>,
     pub asset: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CkbScript {
+    pub code_hash: String,
+    pub hash_type: String,
+    pub args: String,
+}
+
+fn default_wallet_type() -> String {
+    "ckb".to_string()
+}
+
+fn default_public_channel() -> bool {
+    true
 }

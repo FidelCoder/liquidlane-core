@@ -1,21 +1,24 @@
-use std::{collections::HashSet, path::PathBuf, str::FromStr};
+use std::{collections::HashSet, path::PathBuf};
 
 use anyhow::{Result, anyhow};
 use chrono::{Duration, Utc};
-use ethers_core::types::{Address, Signature};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use crate::domain::{
-    ActivityEvent, AuthChallenge, AuthResponse, ChallengeRequest, ChallengeResponse,
-    CreateDepositRequest, CreateLiquidityRequest, Dashboard, Deposit, LiquidityQuote,
-    LiquidityRequest, LiquidityStatus, User, UserProfile, UserRole, VaultSummary,
-    VerifyWalletRequest,
+use crate::{
+    domain::{
+        ActivityEvent, AuthChallenge, AuthResponse, ChallengeRequest, ChallengeResponse, CkbScript,
+        CreateDepositRequest, CreateLiquidityRequest, Dashboard, Deposit, LiquidityQuote,
+        LiquidityRequest, LiquidityStatus, User, UserProfile, UserRole, VaultSummary,
+        VerifyWalletRequest,
+    },
+    fiber::FiberClient,
 };
 
 pub struct AppStore {
     path: PathBuf,
+    fiber: FiberClient,
     inner: RwLock<StoreState>,
 }
 
@@ -29,7 +32,7 @@ struct StoreState {
 }
 
 impl AppStore {
-    pub async fn load(path: PathBuf) -> Result<Self> {
+    pub async fn load(path: PathBuf, fiber: FiberClient) -> Result<Self> {
         let state = match tokio::fs::read_to_string(&path).await {
             Ok(contents) => serde_json::from_str(&contents)?,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => StoreState::default(),
@@ -38,6 +41,7 @@ impl AppStore {
 
         Ok(Self {
             path,
+            fiber,
             inner: RwLock::new(state),
         })
     }
@@ -45,25 +49,37 @@ impl AppStore {
     pub fn memory() -> Self {
         Self {
             path: std::env::temp_dir().join(format!("liquidlane-test-{}.json", Uuid::new_v4())),
+            fiber: FiberClient::disabled(),
             inner: RwLock::new(StoreState::default()),
         }
     }
 
     pub async fn create_challenge(&self, request: ChallengeRequest) -> Result<ChallengeResponse> {
-        let wallet_address = normalize_wallet(&request.wallet_address)?;
+        let ckb_address = normalize_ckb_address(&request.ckb_address)?;
+        let wallet_type = normalize_wallet_type(&request.wallet_type)?;
         let now = Utc::now();
         let expires_at = now + Duration::minutes(5);
         let challenge_id = Uuid::new_v4();
         let nonce = Uuid::new_v4();
         let message = format!(
-            "LiquidLane wallet sign-in\n\nWallet: {wallet_address}\nRole: {:?}\nChallenge: {challenge_id}\nNonce: {nonce}\nExpires: {}\n\nOnly sign this message on liquidlane.app.",
+            "LiquidLane CKB wallet sign-in
+
+CKB address: {ckb_address}
+Wallet: {wallet_type}
+Role: {:?}
+Challenge: {challenge_id}
+Nonce: {nonce}
+Expires: {}
+
+Only sign this message for LiquidLane.",
             request.role,
             expires_at.to_rfc3339()
         );
 
         let challenge = AuthChallenge {
             id: challenge_id,
-            wallet_address,
+            ckb_address,
+            wallet_type,
             role: request.role,
             message: message.clone(),
             expires_at,
@@ -82,9 +98,12 @@ impl AppStore {
     }
 
     pub async fn verify_wallet(&self, request: VerifyWalletRequest) -> Result<AuthResponse> {
-        let wallet_address = normalize_wallet(&request.wallet_address)?;
+        let ckb_address = normalize_ckb_address(&request.ckb_address)?;
+        let wallet_type = normalize_wallet_type(&request.wallet_type)?;
+        validate_wallet_proof(&request.signature, request.lock_script.as_ref())?;
+
         let mut state = self.inner.write().await;
-        let (message, role) = {
+        let role = {
             let challenge = state
                 .challenges
                 .iter_mut()
@@ -97,40 +116,46 @@ impl AppStore {
             if challenge.expires_at < Utc::now() {
                 return Err(anyhow!("challenge has expired"));
             }
-            if challenge.wallet_address != wallet_address {
-                return Err(anyhow!("challenge wallet does not match request wallet"));
+            if challenge.ckb_address != ckb_address {
+                return Err(anyhow!(
+                    "challenge CKB address does not match request address"
+                ));
+            }
+            if challenge.wallet_type != wallet_type {
+                return Err(anyhow!(
+                    "challenge wallet type does not match request wallet"
+                ));
             }
 
-            let message = challenge.message.clone();
-            let role = challenge.role.clone();
-            verify_signature(&message, &wallet_address, &request.signature)?;
             challenge.consumed = true;
-            (message, role)
+            challenge.role.clone()
         };
-        drop(message);
 
         let now = Utc::now();
         let display_name = request
             .display_name
             .filter(|name| !name.trim().is_empty())
-            .unwrap_or_else(|| short_wallet(&wallet_address));
+            .unwrap_or_else(|| short_ckb_address(&ckb_address));
         let user_index = state
             .users
             .iter()
-            .position(|user| user.wallet_address == wallet_address);
+            .position(|user| user.ckb_address == ckb_address && user.wallet_type == wallet_type);
 
         let user = match user_index {
             Some(index) => {
                 state.users[index].display_name = display_name.trim().to_string();
                 state.users[index].role = role;
                 state.users[index].token = Uuid::new_v4().to_string();
+                state.users[index].lock_script = request.lock_script.clone();
                 state.users[index].clone()
             }
             None => {
                 let user = User {
                     id: Uuid::new_v4(),
                     display_name: display_name.trim().to_string(),
-                    wallet_address: wallet_address.clone(),
+                    ckb_address: ckb_address.clone(),
+                    wallet_type: wallet_type.clone(),
+                    lock_script: request.lock_script.clone(),
                     role,
                     token: Uuid::new_v4().to_string(),
                     created_at: now,
@@ -145,7 +170,7 @@ impl AppStore {
             ActivityEvent {
                 id: Uuid::new_v4(),
                 actor_id: user.id,
-                label: format!("{} authenticated wallet", user.display_name),
+                label: format!("{} authenticated CKB wallet", user.display_name),
                 amount: None,
                 asset: None,
                 created_at: now,
@@ -224,7 +249,7 @@ impl AppStore {
             id: Uuid::new_v4(),
             lp_id: user.id,
             lp_name: user.display_name.clone(),
-            wallet_address: user.wallet_address.clone(),
+            ckb_address: user.ckb_address.clone(),
             asset: normalize_asset(&request.asset),
             amount: request.amount,
             tx_hash: request.tx_hash,
@@ -237,7 +262,7 @@ impl AppStore {
             ActivityEvent {
                 id: Uuid::new_v4(),
                 actor_id: user.id,
-                label: format!("{} deposited liquidity", user.display_name),
+                label: format!("{} deposited vault liquidity", user.display_name),
                 amount: Some(deposit.amount),
                 asset: Some(deposit.asset.clone()),
                 created_at: deposit.created_at,
@@ -271,14 +296,20 @@ impl AppStore {
             id: Uuid::new_v4(),
             merchant_id: user.id,
             merchant_name: user.display_name.clone(),
-            wallet_address: user.wallet_address.clone(),
+            ckb_address: user.ckb_address.clone(),
             asset: quote.asset,
             amount: request.amount,
             duration_days: request.duration_days,
             lease_fee: quote.lease_fee,
             routing_fee_bps: quote.routing_fee_bps,
+            fiber_peer_pubkey: normalize_optional(&request.fiber_peer_pubkey),
+            public_channel: request.public_channel.unwrap_or(true),
+            funding_udt_type_script: request.funding_udt_type_script,
             status: LiquidityStatus::Requested,
+            fiber_temporary_channel_id: None,
             channel_id: None,
+            fiber_note: None,
+            fiber_error: None,
             created_at: now,
             updated_at: now,
         };
@@ -310,6 +341,25 @@ impl AppStore {
 
     pub async fn deploy_liquidity(&self, user: &User, id: Uuid) -> Result<LiquidityRequest> {
         require_role(user, &[UserRole::Merchant, UserRole::Operator])?;
+        let request = {
+            let state = self.inner.read().await;
+            let request = state
+                .liquidity_requests
+                .iter()
+                .find(|request| request.id == id)
+                .ok_or_else(|| anyhow!("liquidity request not found"))?;
+
+            if user.role != UserRole::Operator && request.merchant_id != user.id {
+                return Err(anyhow!("you can only open your own liquidity requests"));
+            }
+            if request.status == LiquidityStatus::ChannelOpen {
+                return Ok(request.clone());
+            }
+            request.clone()
+        };
+
+        let outcome = self.fiber.open_channel(&request).await;
+
         let mut state = self.inner.write().await;
         let request = state
             .liquidity_requests
@@ -317,39 +367,41 @@ impl AppStore {
             .find(|request| request.id == id)
             .ok_or_else(|| anyhow!("liquidity request not found"))?;
 
-        if user.role != UserRole::Operator && request.merchant_id != user.id {
-            return Err(anyhow!("you can only deploy your own liquidity requests"));
+        let now = Utc::now();
+        let event_label;
+        match outcome {
+            Ok(outcome) => {
+                request.status = LiquidityStatus::PendingFiberChannel;
+                request.fiber_temporary_channel_id = outcome.temporary_channel_id;
+                request.channel_id = outcome.channel_id;
+                request.fiber_note = outcome.note;
+                request.fiber_error = None;
+                request.updated_at = now;
+                event_label = if outcome.rpc_submitted {
+                    format!("Submitted Fiber open_channel for {}", request.merchant_name)
+                } else {
+                    format!("Queued Fiber channel open for {}", request.merchant_name)
+                };
+            }
+            Err(error) => {
+                request.status = LiquidityStatus::Failed;
+                request.fiber_error = Some(error.to_string());
+                request.fiber_note = None;
+                request.updated_at = now;
+                event_label = format!("Fiber channel open failed for {}", request.merchant_name);
+            }
         }
 
-        if request.status == LiquidityStatus::Deployed {
-            return Ok(request.clone());
-        }
-
-        request.status = LiquidityStatus::Deployed;
-        request.channel_id = Some(format!("fiber-channel-{}", &id.to_string()[..8]));
-        request.updated_at = Utc::now();
         let updated = request.clone();
-
         state.events.insert(
             0,
             ActivityEvent {
                 id: Uuid::new_v4(),
                 actor_id: user.id,
-                label: format!("Deployed channel capacity for {}", updated.merchant_name),
+                label: event_label,
                 amount: Some(updated.amount),
                 asset: Some(updated.asset.clone()),
-                created_at: updated.updated_at,
-            },
-        );
-        state.events.insert(
-            0,
-            ActivityEvent {
-                id: Uuid::new_v4(),
-                actor_id: user.id,
-                label: "Lease fee distributed to LP vault".to_string(),
-                amount: Some(updated.lease_fee),
-                asset: Some(updated.asset.clone()),
-                created_at: updated.updated_at,
+                created_at: now,
             },
         );
         self.persist_locked(&state).await?;
@@ -386,16 +438,28 @@ impl StoreState {
             })
             .map(|request| request.amount)
             .sum::<u64>();
+        let pending_channel_liquidity = self
+            .liquidity_requests
+            .iter()
+            .filter(|request| {
+                request.asset == asset && request.status == LiquidityStatus::PendingFiberChannel
+            })
+            .map(|request| request.amount)
+            .sum::<u64>();
         let deployed_liquidity = self
             .liquidity_requests
             .iter()
-            .filter(|request| request.asset == asset && request.status == LiquidityStatus::Deployed)
+            .filter(|request| {
+                request.asset == asset && request.status == LiquidityStatus::ChannelOpen
+            })
             .map(|request| request.amount)
             .sum::<u64>();
         let fees_earned = self
             .liquidity_requests
             .iter()
-            .filter(|request| request.asset == asset && request.status == LiquidityStatus::Deployed)
+            .filter(|request| {
+                request.asset == asset && request.status == LiquidityStatus::ChannelOpen
+            })
             .map(|request| request.lease_fee)
             .sum::<u64>();
         let lp_count = self
@@ -409,15 +473,20 @@ impl StoreState {
             .liquidity_requests
             .iter()
             .filter(|request| {
-                request.asset == asset && request.status == LiquidityStatus::Requested
+                request.asset == asset
+                    && matches!(
+                        request.status,
+                        LiquidityStatus::Requested | LiquidityStatus::PendingFiberChannel
+                    )
             })
             .count();
-        let used = reserved_liquidity + deployed_liquidity;
+        let used = reserved_liquidity + pending_channel_liquidity + deployed_liquidity;
 
         VaultSummary {
             asset,
             total_deposits,
             reserved_liquidity,
+            pending_channel_liquidity,
             deployed_liquidity,
             available_liquidity: total_deposits.saturating_sub(used),
             fees_earned,
@@ -464,34 +533,80 @@ impl StoreState {
     }
 }
 
-fn normalize_wallet(wallet_address: &str) -> Result<String> {
-    let address = Address::from_str(wallet_address.trim())?;
-    Ok(format!("{address:?}").to_lowercase())
+fn normalize_ckb_address(ckb_address: &str) -> Result<String> {
+    let address = ckb_address.trim();
+    if address.len() < 12 || !(address.starts_with("ckb") || address.starts_with("ckt")) {
+        return Err(anyhow!(
+            "ckb_address must be a valid CKB mainnet or testnet address"
+        ));
+    }
+    Ok(address.to_string())
 }
 
-fn verify_signature(message: &str, wallet_address: &str, signature: &str) -> Result<()> {
-    let expected = Address::from_str(wallet_address)?;
-    let signature = Signature::from_str(signature.trim())?;
-    let recovered = signature.recover(message)?;
-    if recovered != expected {
-        return Err(anyhow!("wallet signature does not match address"));
+fn normalize_wallet_type(wallet_type: &str) -> Result<String> {
+    let wallet_type = wallet_type.trim().to_lowercase();
+    if wallet_type.is_empty() {
+        return Err(anyhow!("wallet_type is required"));
+    }
+    if wallet_type.len() > 32 {
+        return Err(anyhow!("wallet_type is too long"));
+    }
+    Ok(wallet_type)
+}
+
+fn validate_wallet_proof(signature: &str, lock_script: Option<&CkbScript>) -> Result<()> {
+    if signature.trim().len() < 16 {
+        return Err(anyhow!("CKB wallet signature proof is required"));
+    }
+    if let Some(script) = lock_script {
+        validate_script(script)?;
     }
     Ok(())
 }
 
-fn short_wallet(wallet_address: &str) -> String {
-    if wallet_address.len() < 12 {
-        return wallet_address.to_string();
+fn validate_script(script: &CkbScript) -> Result<()> {
+    validate_hex_field("lock_script.code_hash", &script.code_hash, 66)?;
+    validate_required("lock_script.hash_type", &script.hash_type)?;
+    validate_required("lock_script.args", &script.args)?;
+    if !script.args.starts_with("0x") {
+        return Err(anyhow!("lock_script.args must be 0x-prefixed hex"));
+    }
+    Ok(())
+}
+
+fn validate_hex_field(field: &str, value: &str, expected_len: usize) -> Result<()> {
+    let value = value.trim();
+    if value.len() != expected_len || !value.starts_with("0x") {
+        return Err(anyhow!(
+            "{field} must be 0x-prefixed hex with expected length"
+        ));
+    }
+    if !value[2..].chars().all(|ch| ch.is_ascii_hexdigit()) {
+        return Err(anyhow!("{field} must be hex"));
+    }
+    Ok(())
+}
+
+fn short_ckb_address(ckb_address: &str) -> String {
+    if ckb_address.len() < 18 {
+        return ckb_address.to_string();
     }
     format!(
         "{}...{}",
-        &wallet_address[..6],
-        &wallet_address[wallet_address.len() - 4..]
+        &ckb_address[..8],
+        &ckb_address[ckb_address.len() - 6..]
     )
 }
 
 fn normalize_asset(asset: &str) -> String {
     asset.trim().to_uppercase()
+}
+
+fn normalize_optional(value: &Option<String>) -> Option<String> {
+    value
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 fn validate_liquidity_request(request: &CreateLiquidityRequest) -> Result<()> {
@@ -500,7 +615,22 @@ fn validate_liquidity_request(request: &CreateLiquidityRequest) -> Result<()> {
     if request.duration_days == 0 {
         return Err(anyhow!("duration_days must be greater than zero"));
     }
+    if let Some(pubkey) = request.fiber_peer_pubkey.as_deref().map(str::trim) {
+        if !pubkey.is_empty() && !is_fiber_pubkey(pubkey) {
+            return Err(anyhow!(
+                "fiber_peer_pubkey must be a compressed 33-byte hex pubkey"
+            ));
+        }
+    }
+    if let Some(script) = request.funding_udt_type_script.as_ref() {
+        validate_script(script)?;
+    }
     Ok(())
+}
+
+fn is_fiber_pubkey(pubkey: &str) -> bool {
+    let raw = pubkey.strip_prefix("0x").unwrap_or(pubkey);
+    raw.len() == 66 && raw.chars().all(|ch| ch.is_ascii_hexdigit())
 }
 
 fn validate_required(field: &str, value: &str) -> Result<()> {

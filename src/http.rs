@@ -220,11 +220,7 @@ mod tests {
         })
     }
 
-    async fn auth_token(app: Router, name: &str, role: &str, key: &str) -> String {
-        use ethers_signers::{LocalWallet, Signer};
-
-        let wallet: LocalWallet = key.parse().unwrap();
-        let address = format!("{:?}", wallet.address());
+    async fn auth_token(app: Router, name: &str, role: &str, ckb_address: &str) -> String {
         let challenge_response = app
             .clone()
             .oneshot(
@@ -234,7 +230,8 @@ mod tests {
                     .header(header::CONTENT_TYPE, "application/json")
                     .body(Body::from(
                         json!({
-                            "wallet_address": address,
+                            "ckb_address": ckb_address,
+                            "wallet_type": "joyid_ckb",
                             "role": role
                         })
                         .to_string(),
@@ -252,8 +249,6 @@ mod tests {
             .unwrap()
             .to_bytes();
         let challenge: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        let message = challenge["message"].as_str().unwrap();
-        let signature = wallet.sign_message(message).await.unwrap().to_string();
 
         let verify_response = app
             .oneshot(
@@ -264,8 +259,14 @@ mod tests {
                     .body(Body::from(
                         json!({
                             "challenge_id": challenge["challenge_id"],
-                            "wallet_address": address,
-                            "signature": signature,
+                            "ckb_address": ckb_address,
+                            "wallet_type": "joyid_ckb",
+                            "signature": "0x11112222333344445555666677778888",
+                            "lock_script": {
+                                "code_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                                "hash_type": "type",
+                                "args": "0x1234"
+                            },
                             "display_name": name
                         })
                         .to_string(),
@@ -304,20 +305,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn lp_deposit_then_merchant_request_and_deploy() {
+    async fn lp_deposit_then_merchant_request_and_queue_fiber_channel() {
         let app = test_app();
         let lp_token = auth_token(
             app.clone(),
             "Atlas LP",
             "lp",
-            "0x59c6995e998f97a5a0044966f09453857395f8816f99667bb4d5b10c4b1f7f1c",
+            "ckt1qyq000000000000000000000000000000000000lp",
         )
         .await;
         let merchant_token = auth_token(
             app.clone(),
             "Kairo Market",
             "merchant",
-            "0x8b3a350cf5c34c9194ca3a9d8b148b52f726cabaa46cfd31e2f7f5b27e6f4d8b",
+            "ckt1qyq0000000000000000000000000000000merchant",
         )
         .await;
 
@@ -361,6 +362,7 @@ mod tests {
             .unwrap()
             .to_bytes();
         let request_body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(request_body["status"], "requested");
         let id = request_body["id"].as_str().unwrap();
 
         let deploy_response = app
@@ -375,5 +377,20 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(deploy_response.status(), StatusCode::OK);
+        let body = deploy_response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
+        let deployed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(deployed["status"], "pending_fiber_channel");
+        assert!(deployed["channel_id"].is_null());
+        assert!(
+            deployed["fiber_note"]
+                .as_str()
+                .unwrap()
+                .contains("Fiber RPC")
+        );
     }
 }
