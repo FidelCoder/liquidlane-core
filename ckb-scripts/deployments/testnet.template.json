@@ -1,0 +1,46 @@
+{
+  "record_type": "public-testnet-deployment",
+  "recorded_at": "YYYY-MM-DD",
+  "network": "ckb-testnet",
+  "public_explorer": true,
+  "explorer_base_url": "https://explorer.nervos.org/aggron",
+  "deployment_status": "deployed",
+  "deployer_address": "ckt1...",
+  "scripts": [
+    {
+      "name": "liquidlane-vault-lock",
+      "deployment_tx_hash": "0x...",
+      "code_cell_out_point": {
+        "tx_hash": "0x...",
+        "index": "0x0"
+      },
+      "code_hash": "0x...",
+      "hash_type": "data1",
+      "script_args": "0x...",
+      "script_hash": "0x...",
+      "contract_address_equivalent": null,
+      "explorer_url": "https://explorer.nervos.org/aggron/transaction/0x..."
+    }
+  ],
+  "vault": {
+    "vault_address": "ckt1...",
+    "vault_cell_out_point": {
+      "tx_hash": "0x...",
+      "index": "0x..."
+    },
+    "vault_lock_script_hash": "0x...",
+    "vault_type_script_hash": "0x...",
+    "explorer_url": "https://explorer.nervos.org/aggron/transaction/0x..."
+  },
+  "runtime_env": {
+    "LIQUIDLANE_CKB_RPC_URL": "https://...",
+    "LIQUIDLANE_REQUIRE_CKB_RPC": "true",
+    "LIQUIDLANE_CKB_ACCEPT_PENDING_TXS": "false",
+    "LIQUIDLANE_VAULT_LOCK_CODE_HASH": "0x...",
+    "LIQUIDLANE_VAULT_TYPE_CODE_HASH": "0x...",
+    "LIQUIDLANE_LP_RECEIPT_TYPE_CODE_HASH": "0x...",
+    "LIQUIDLANE_REQUEST_TYPE_CODE_HASH": "0x...",
+    "LIQUIDLANE_FEE_CLAIM_TYPE_CODE_HASH": "0x...",
+    "LIQUIDLANE_VAULT_CKB_ADDRESS": "ckt1..."
+  }
+}

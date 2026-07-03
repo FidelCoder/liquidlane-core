@@ -27,6 +27,8 @@ All script arguments are raw 32-byte hashes packed in order. Vault references us
 
 ## Deployment Path
 
+Deployment records and explorer templates live in `ckb-scripts/deployments/`. Local builds only have artifact hashes; public confirmation requires CKB testnet transaction hashes and cell out-points.
+
 1. Compile each script to a RISC-V CKB binary with `scripts/build-ckb-scripts.sh`.
 2. Add transaction-level tests for create, update, close, invalid duplicate groups, bad actor paths, and bad accounting deltas.
 3. Deploy a unique vault instance using CKB's type-id style pattern so the vault accounting cell cannot be cloned with the same args.
