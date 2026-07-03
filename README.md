@@ -100,4 +100,5 @@ LP positions, capacity reservations, withdrawal intents, and fee-claim intents a
 
 ```bash
 cargo test
+scripts/check-rust-line-count.sh
 ```
