@@ -42,6 +42,12 @@ LiquidLane exposes the product vault that clients use for supply transactions.
 curl http://localhost:8080/vault
 ```
 
+## CKB Scripts
+
+The CKB-native script source drafts live in `ckb-scripts/`. They cover vault custody, vault accounting, LP receipt cells, capacity request cells, and fee claim cells.
+
+They are not deployed or audited yet. After compiling and deploying them to testnet, set the script code-hash environment variables and `LIQUIDLANE_VAULT_CKB_ADDRESS` so Core can expose a real protected vault.
+
 ## CKB Wallet Session API
 
 Open a wallet session without an extra signature. Value-moving actions still require a wallet transaction proof.
