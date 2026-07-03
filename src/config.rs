@@ -1,6 +1,6 @@
 use std::{env, net::SocketAddr, path::PathBuf};
 
-use crate::domain::{VaultConfig, VaultScripts};
+use crate::domain::{VaultConfig, VaultScripts, is_plausible_ckb_address};
 
 #[derive(Clone, Debug)]
 pub struct AppConfig {
@@ -27,10 +27,9 @@ impl AppConfig {
         let fiber_rpc_auth_token = env::var("FIBER_RPC_AUTH_TOKEN")
             .ok()
             .filter(|value| !value.trim().is_empty());
-        let vault_address = env::var("LIQUIDLANE_VAULT_CKB_ADDRESS")
-            .ok()
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty());
+        let vault_address = optional_env("LIQUIDLANE_VAULT_CKB_ADDRESS")
+            .map(validate_vault_address)
+            .transpose()?;
         let vault = VaultConfig {
             asset: env::var("LIQUIDLANE_VAULT_ASSET")
                 .unwrap_or_else(|_| "CKB".to_string())
@@ -67,4 +66,14 @@ fn optional_env(key: &str) -> Option<String> {
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+}
+
+fn validate_vault_address(address: String) -> anyhow::Result<String> {
+    if is_plausible_ckb_address(&address) {
+        return Ok(address);
+    }
+
+    anyhow::bail!(
+        "LIQUIDLANE_VAULT_CKB_ADDRESS must be a real CKB address from a wallet or vault script, not a placeholder"
+    )
 }

@@ -30,7 +30,7 @@ async fn lp_deposit_then_merchant_request_and_queue_fiber_channel() {
     assert_eq!(intent["status"], "pending_signature");
     assert_eq!(
         intent["vault_address"],
-        "ckt1qpkp7liquidlanevault000000000000000000000000000"
+        "ckt1qpkp7qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"
     );
     settle_supply(
         app.clone(),

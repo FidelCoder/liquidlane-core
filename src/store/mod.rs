@@ -71,7 +71,7 @@ impl AppStore {
             fiber: FiberClient::disabled(),
             vault: VaultConfig {
                 asset: "CKB".to_string(),
-                address: Some("ckt1qpkp7liquidlanevault000000000000000000000000000".to_string()),
+                address: Some("ckt1qpkp7qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq".to_string()),
                 network: "testnet".to_string(),
                 configured: true,
                 scripts: crate::domain::VaultScripts {
