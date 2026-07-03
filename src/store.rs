@@ -512,7 +512,7 @@ impl StoreState {
         let total_deposits = self
             .deposits
             .iter()
-            .filter(|deposit| deposit.asset == asset)
+            .filter(|deposit| deposit.asset == asset && is_verified_deposit(deposit))
             .map(|deposit| deposit.amount)
             .sum::<u64>();
         let reserved_liquidity = self
@@ -550,7 +550,7 @@ impl StoreState {
         let lp_count = self
             .deposits
             .iter()
-            .filter(|deposit| deposit.asset == asset)
+            .filter(|deposit| deposit.asset == asset && is_verified_deposit(deposit))
             .map(|deposit| deposit.lp_id)
             .collect::<HashSet<_>>()
             .len();
@@ -585,11 +585,16 @@ impl StoreState {
 
     fn visible_deposits(&self, user: &User) -> Vec<Deposit> {
         match user.role {
-            UserRole::Operator | UserRole::Merchant => self.deposits.clone(),
+            UserRole::Operator | UserRole::Merchant => self
+                .deposits
+                .iter()
+                .filter(|deposit| is_verified_deposit(deposit))
+                .cloned()
+                .collect(),
             UserRole::Lp => self
                 .deposits
                 .iter()
-                .filter(|deposit| deposit.lp_id == user.id)
+                .filter(|deposit| deposit.lp_id == user.id && is_verified_deposit(deposit))
                 .cloned()
                 .collect(),
         }
@@ -622,8 +627,12 @@ impl StoreState {
     }
 }
 
+fn is_verified_deposit(deposit: &Deposit) -> bool {
+    deposit.signed_tx.is_some() && deposit.tx_hash.is_some()
+}
+
 fn is_product_activity(event: &ActivityEvent) -> bool {
-    event.amount.is_some()
+    (event.amount.is_some() && !event.label.contains("deposited vault liquidity"))
         || event.label.contains("Fiber")
         || event.label.contains("reserved")
         || event.label.contains("supplied")
