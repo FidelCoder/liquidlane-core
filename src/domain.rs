@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -32,6 +33,18 @@ pub struct ChallengeRequest {
     #[serde(default = "default_wallet_type")]
     pub wallet_type: String,
     pub role: UserRole,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ConnectWalletRequest {
+    #[serde(alias = "wallet_address")]
+    pub ckb_address: String,
+    #[serde(default = "default_wallet_type")]
+    pub wallet_type: String,
+    pub role: UserRole,
+    #[serde(default)]
+    pub lock_script: Option<CkbScript>,
+    pub display_name: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -121,6 +134,8 @@ pub struct CreateDepositRequest {
     pub asset: String,
     pub amount: u64,
     pub tx_hash: Option<String>,
+    #[serde(default)]
+    pub signed_tx: Option<Value>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -133,6 +148,8 @@ pub struct Deposit {
     pub asset: String,
     pub amount: u64,
     pub tx_hash: Option<String>,
+    #[serde(default)]
+    pub signed_tx: Option<Value>,
     pub created_at: DateTime<Utc>,
 }
 
