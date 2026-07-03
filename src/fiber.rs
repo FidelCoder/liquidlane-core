@@ -43,6 +43,7 @@ impl FiberClient {
         }
     }
 
+    #[cfg(test)]
     pub fn disabled() -> Self {
         Self::new(None, None)
     }

@@ -61,6 +61,7 @@ impl AppStore {
         })
     }
 
+    #[cfg(test)]
     pub fn memory() -> Self {
         Self {
             path: std::env::temp_dir().join(format!("liquidlane-test-{}.json", Uuid::new_v4())),
