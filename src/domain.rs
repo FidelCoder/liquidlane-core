@@ -119,8 +119,9 @@ pub struct Dashboard {
 #[derive(Clone, Debug, Serialize)]
 pub struct VaultSummary {
     pub asset: String,
-    pub address: String,
+    pub address: Option<String>,
     pub network: String,
+    pub configured: bool,
     pub total_deposits: u64,
     pub reserved_liquidity: u64,
     pub pending_channel_liquidity: u64,
@@ -239,8 +240,9 @@ pub struct CkbScript {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VaultConfig {
     pub asset: String,
-    pub address: String,
+    pub address: Option<String>,
     pub network: String,
+    pub configured: bool,
 }
 
 fn default_wallet_type() -> String {

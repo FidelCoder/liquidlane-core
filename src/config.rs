@@ -27,17 +27,17 @@ impl AppConfig {
         let fiber_rpc_auth_token = env::var("FIBER_RPC_AUTH_TOKEN")
             .ok()
             .filter(|value| !value.trim().is_empty());
+        let vault_address = env::var("LIQUIDLANE_VAULT_CKB_ADDRESS")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
         let vault = VaultConfig {
             asset: env::var("LIQUIDLANE_VAULT_ASSET")
                 .unwrap_or_else(|_| "CKB".to_string())
                 .trim()
                 .to_uppercase(),
-            address: env::var("LIQUIDLANE_VAULT_CKB_ADDRESS")
-                .unwrap_or_else(|_| {
-                    "ckt1qpkp7liquidlanevault000000000000000000000000000".to_string()
-                })
-                .trim()
-                .to_string(),
+            configured: vault_address.is_some(),
+            address: vault_address,
             network: env::var("LIQUIDLANE_CKB_NETWORK")
                 .unwrap_or_else(|_| "testnet".to_string())
                 .trim()

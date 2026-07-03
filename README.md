@@ -22,7 +22,7 @@ cargo run
 ```
 
 The API listens on `0.0.0.0:8080` by default and stores local state in `liquidlane-data.json`.
-Configure the active vault with `LIQUIDLANE_VAULT_ASSET`, `LIQUIDLANE_VAULT_CKB_ADDRESS`, and `LIQUIDLANE_CKB_NETWORK`.
+Configure the active vault with `LIQUIDLANE_VAULT_ASSET`, `LIQUIDLANE_VAULT_CKB_ADDRESS`, and `LIQUIDLANE_CKB_NETWORK`. Core reports the vault as unconfigured until `LIQUIDLANE_VAULT_CKB_ADDRESS` is set.
 
 ## Fiber RPC
 

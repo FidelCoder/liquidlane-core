@@ -54,8 +54,9 @@ impl AppStore {
             fiber: FiberClient::disabled(),
             vault: VaultConfig {
                 asset: "CKB".to_string(),
-                address: "ckt1qpkp7liquidlanevault000000000000000000000000000".to_string(),
+                address: Some("ckt1qpkp7liquidlanevault000000000000000000000000000".to_string()),
                 network: "testnet".to_string(),
+                configured: true,
             },
             inner: RwLock::new(StoreState::default()),
         }
@@ -313,6 +314,9 @@ Only sign this message for LiquidLane.",
         validate_amount(request.amount)?;
         validate_required("asset", &request.asset)?;
         let asset = normalize_asset(&request.asset);
+        if !self.vault.configured {
+            return Err(anyhow!("active vault address is not configured"));
+        }
         if asset != self.vault.asset {
             return Err(anyhow!(
                 "supply asset must match the active {} vault",
@@ -567,6 +571,7 @@ impl StoreState {
             asset,
             address: vault.address.clone(),
             network: vault.network.clone(),
+            configured: vault.configured,
             total_deposits,
             reserved_liquidity,
             pending_channel_liquidity,
