@@ -46,7 +46,7 @@ curl http://localhost:8080/vault
 
 The CKB-native script source drafts live in `ckb-scripts/`. They cover vault custody, vault accounting, LP receipt cells, capacity request cells, and fee claim cells.
 
-They are not deployed or audited yet. After compiling and deploying them to testnet, set the script code-hash environment variables and `LIQUIDLANE_VAULT_CKB_ADDRESS` so Core can expose a real protected vault.
+They are not deployed or externally audited yet. Use `docs/testnet-deployment.md` to build stripped RISC-V artifacts and generate the deployment manifest, then set the script code-hash environment variables and `LIQUIDLANE_VAULT_CKB_ADDRESS` so Core can expose a real protected vault.
 
 ## CKB Wallet Session API
 
@@ -101,6 +101,8 @@ curl -X POST http://localhost:8080/deposits \
 ```
 
 LP positions, capacity reservations, withdrawal intents, and fee-claim intents are returned by `GET /dashboard`.
+
+For production-style settlement verification, configure `LIQUIDLANE_CKB_RPC_URL` and set `LIQUIDLANE_REQUIRE_CKB_RPC=true`. Core will reject supply settlement unless the CKB node returns the transaction as accepted.
 
 ## Tests
 

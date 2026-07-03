@@ -15,6 +15,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::{
+    ckb_rpc::{CkbRpcClient, explicit_transaction_hash},
     domain::{
         ActivityEvent, AuthChallenge, CapacityReservation, Deposit, FeeClaim, LiquidityRequest,
         LpPosition, SupplyIntent, User, VaultConfig, WithdrawalIntent,
@@ -26,6 +27,8 @@ pub struct AppStore {
     path: PathBuf,
     fiber: FiberClient,
     vault: VaultConfig,
+    ckb_rpc: Option<CkbRpcClient>,
+    require_ckb_rpc: bool,
     inner: RwLock<StoreState>,
 }
 
@@ -49,7 +52,13 @@ struct StoreState {
 }
 
 impl AppStore {
-    pub async fn load(path: PathBuf, fiber: FiberClient, vault: VaultConfig) -> Result<Self> {
+    pub async fn load(
+        path: PathBuf,
+        fiber: FiberClient,
+        vault: VaultConfig,
+        ckb_rpc: Option<CkbRpcClient>,
+        require_ckb_rpc: bool,
+    ) -> Result<Self> {
         let state = match tokio::fs::read_to_string(&path).await {
             Ok(contents) => serde_json::from_str(&contents)?,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => StoreState::default(),
@@ -60,6 +69,8 @@ impl AppStore {
             path,
             fiber,
             vault,
+            ckb_rpc,
+            require_ckb_rpc,
             inner: RwLock::new(state),
         })
     }
@@ -69,6 +80,8 @@ impl AppStore {
         Self {
             path: std::env::temp_dir().join(format!("liquidlane-test-{}.json", Uuid::new_v4())),
             fiber: FiberClient::disabled(),
+            ckb_rpc: None,
+            require_ckb_rpc: false,
             vault: VaultConfig {
                 asset: "CKB".to_string(),
                 address: Some("ckt1qpkp7qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq".to_string()),
@@ -84,6 +97,29 @@ impl AppStore {
             },
             inner: RwLock::new(StoreState::default()),
         }
+    }
+
+    async fn verify_ckb_settlement_tx(
+        &self,
+        tx_hash: &str,
+        signed_tx: &Option<serde_json::Value>,
+    ) -> Result<()> {
+        if let Some(signed_tx) = signed_tx.as_ref()
+            && let Some(hash) = explicit_transaction_hash(signed_tx)
+            && hash != tx_hash
+        {
+            anyhow::bail!("signed_tx.hash must match tx_hash");
+        }
+        if let Some(client) = self.ckb_rpc.as_ref() {
+            client.verify_transaction(tx_hash).await?;
+            return Ok(());
+        }
+        if self.require_ckb_rpc {
+            anyhow::bail!(
+                "LIQUIDLANE_CKB_RPC_URL is required before accepting real CKB settlements"
+            );
+        }
+        Ok(())
     }
 
     async fn persist_locked(&self, state: &StoreState) -> Result<()> {

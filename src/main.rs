@@ -1,3 +1,4 @@
+mod ckb_rpc;
 mod config;
 mod domain;
 mod fiber;
@@ -10,6 +11,7 @@ use tokio::net::TcpListener;
 use tracing_subscriber::{EnvFilter, fmt};
 
 use crate::{
+    ckb_rpc::CkbRpcClient,
     config::AppConfig,
     fiber::FiberClient,
     http::{AppState, router},
@@ -25,10 +27,16 @@ async fn main() -> anyhow::Result<()> {
         config.fiber_rpc_url.clone(),
         config.fiber_rpc_auth_token.clone(),
     );
+    let ckb_rpc = config
+        .ckb_rpc_url
+        .clone()
+        .map(|url| CkbRpcClient::new(url, config.ckb_accept_pending_txs));
     let store = AppStore::load(
         config.data_path.clone(),
         fiber.clone(),
         config.vault.clone(),
+        ckb_rpc,
+        config.require_ckb_rpc,
     )
     .await?;
     let app = router(AppState {
@@ -43,6 +51,8 @@ async fn main() -> anyhow::Result<()> {
         environment = %config.environment,
         data_path = %config.data_path.display(),
         fiber_rpc_configured = fiber.is_configured(),
+        ckb_rpc_configured = config.ckb_rpc_url.is_some(),
+        ckb_rpc_required = config.require_ckb_rpc,
         vault_asset = %config.vault.asset,
         vault_network = %config.vault.network,
         "starting LiquidLane Core"

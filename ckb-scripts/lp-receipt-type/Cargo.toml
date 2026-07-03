@@ -6,3 +6,6 @@ edition = "2021"
 [dependencies]
 ckb-std = { workspace = true }
 liquidlane-scripts-shared = { workspace = true }
+
+[lints.rust]
+unexpected_cfgs = "allow"
