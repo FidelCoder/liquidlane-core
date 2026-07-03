@@ -13,8 +13,9 @@ use uuid::Uuid;
 
 use crate::{
     domain::{
-        ChallengeRequest, ConnectWalletRequest, CreateDepositRequest, CreateLiquidityRequest, User,
-        VaultConfig, VerifyWalletRequest,
+        ChallengeRequest, ConnectWalletRequest, CreateDepositRequest, CreateFeeClaimRequest,
+        CreateLiquidityRequest, CreateSupplyIntentRequest, CreateWithdrawalIntentRequest,
+        SettleWithdrawalRequest, User, VaultConfig, VerifyWalletRequest,
     },
     store::AppStore,
 };
@@ -34,6 +35,10 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/verify", post(verify_wallet))
         .route("/me", get(me))
         .route("/vault", get(vault))
+        .route("/vault/supply/intents", post(create_supply_intent))
+        .route("/vault/withdrawals/intents", post(create_withdrawal_intent))
+        .route("/vault/withdrawals/{id}/settle", post(settle_withdrawal))
+        .route("/vault/fees/claims", post(create_fee_claim))
         .route("/dashboard", get(dashboard))
         .route("/deposits", post(create_deposit))
         .route("/liquidity/quote", post(create_quote))
@@ -108,6 +113,50 @@ async fn dashboard(
     Query(query): Query<DashboardQuery>,
 ) -> impl IntoResponse {
     Json(state.store.dashboard(&user, query.asset).await)
+}
+
+async fn create_supply_intent(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+    Json(request): Json<CreateSupplyIntentRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok((
+        StatusCode::CREATED,
+        Json(state.store.create_supply_intent(&user, request).await?),
+    ))
+}
+
+async fn create_withdrawal_intent(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+    Json(request): Json<CreateWithdrawalIntentRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok((
+        StatusCode::CREATED,
+        Json(state.store.create_withdrawal_intent(&user, request).await?),
+    ))
+}
+
+async fn settle_withdrawal(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+    Path(id): Path<Uuid>,
+    Json(request): Json<SettleWithdrawalRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(
+        state.store.settle_withdrawal(&user, id, request).await?,
+    ))
+}
+
+async fn create_fee_claim(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+    Json(request): Json<CreateFeeClaimRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok((
+        StatusCode::CREATED,
+        Json(state.store.create_fee_claim(&user, request).await?),
+    ))
 }
 
 async fn create_deposit(
@@ -239,6 +288,13 @@ mod tests {
                 address: Some("ckt1qpkp7liquidlanevault000000000000000000000000000".to_string()),
                 network: "testnet".to_string(),
                 configured: true,
+                scripts: crate::domain::VaultScripts {
+                    vault_lock_code_hash: None,
+                    vault_type_code_hash: None,
+                    lp_receipt_type_code_hash: None,
+                    request_type_code_hash: None,
+                    fee_claim_type_code_hash: None,
+                },
             },
             store: Arc::new(AppStore::memory()),
         })
@@ -283,9 +339,9 @@ mod tests {
             .to_string()
     }
 
-    fn signed_tx_fixture() -> serde_json::Value {
+    fn signed_tx_fixture(tx_hash: &str) -> serde_json::Value {
         json!({
-            "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+            "hash": tx_hash,
             "cellDeps": [],
             "headerDeps": [],
             "inputs": [{"previousOutput":{"txHash":"0x2222222222222222222222222222222222222222222222222222222222222222","index":"0x0"},"since":"0x0"}],
@@ -294,6 +350,59 @@ mod tests {
             "version": "0x0",
             "witnesses": ["0x55000000100000005500000055000000410000001111111122222222333333334444444455555555666666667777777788888888"]
         })
+    }
+
+    async fn create_supply_intent(app: Router, token: &str, amount: u64) -> serde_json::Value {
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/vault/supply/intents")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::from(
+                        json!({"asset":"CKB","amount":amount}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    async fn settle_supply(
+        app: Router,
+        token: &str,
+        intent: &serde_json::Value,
+        amount: u64,
+        tx_hash: &str,
+    ) {
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/deposits")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::from(
+                        json!({
+                            "asset":"CKB",
+                            "amount":amount,
+                            "intent_id": intent["id"],
+                            "tx_hash": tx_hash,
+                            "signed_tx": signed_tx_fixture(tx_hash)
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
     }
 
     #[tokio::test]
@@ -350,9 +459,7 @@ mod tests {
                     .uri("/deposits")
                     .header(header::CONTENT_TYPE, "application/json")
                     .header(header::AUTHORIZATION, format!("Bearer {lp_token}"))
-                    .body(Body::from(
-                        json!({"asset":"USDC","amount":5000}).to_string(),
-                    ))
+                    .body(Body::from(json!({"asset":"CKB","amount":5000}).to_string()))
                     .unwrap(),
             )
             .await
@@ -379,28 +486,20 @@ mod tests {
         )
         .await;
 
-        let deposit_response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/deposits")
-                    .header(header::CONTENT_TYPE, "application/json")
-                    .header(header::AUTHORIZATION, format!("Bearer {lp_token}"))
-                    .body(Body::from(
-                        json!({
-                            "asset":"CKB",
-                            "amount":5000,
-                            "tx_hash":"0x1111111111111111111111111111111111111111111111111111111111111111",
-                            "signed_tx": signed_tx_fixture()
-                        })
-                        .to_string(),
-                    ))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(deposit_response.status(), StatusCode::CREATED);
+        let intent = create_supply_intent(app.clone(), &lp_token, 5000).await;
+        assert_eq!(intent["status"], "pending_signature");
+        assert_eq!(
+            intent["vault_address"],
+            "ckt1qpkp7liquidlanevault000000000000000000000000000"
+        );
+        settle_supply(
+            app.clone(),
+            &lp_token,
+            &intent,
+            5000,
+            "0x1111111111111111111111111111111111111111111111111111111111111111",
+        )
+        .await;
 
         let request_response = app
             .clone()
@@ -428,7 +527,30 @@ mod tests {
         assert_eq!(request_body["status"], "requested");
         let id = request_body["id"].as_str().unwrap();
 
+        let dashboard_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/dashboard")
+                    .header(header::AUTHORIZATION, format!("Bearer {lp_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = dashboard_response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
+        let dashboard: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(dashboard["vault"]["available_liquidity"], 2000);
+        assert_eq!(dashboard["vault"]["reserved_liquidity"], 3000);
+        assert_eq!(dashboard["reservations"][0]["status"], "reserved");
+
         let deploy_response = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")
@@ -455,5 +577,166 @@ mod tests {
                 .unwrap()
                 .contains("Fiber RPC")
         );
+
+        let dashboard_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/dashboard")
+                    .header(header::AUTHORIZATION, format!("Bearer {lp_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = dashboard_response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
+        let dashboard: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(dashboard["vault"]["reserved_liquidity"], 0);
+        assert_eq!(dashboard["vault"]["deployed_liquidity"], 3000);
+        assert_eq!(dashboard["vault"]["fees_earned"], 30);
+        assert_eq!(dashboard["positions"][0]["fees_earned"], 30);
+        assert_eq!(dashboard["reservations"][0]["status"], "deployed");
+        let position_id = dashboard["positions"][0]["id"].as_str().unwrap();
+
+        let fee_claim_response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/vault/fees/claims")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::AUTHORIZATION, format!("Bearer {lp_token}"))
+                    .body(Body::from(
+                        json!({"position_id": position_id, "amount": 30}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(fee_claim_response.status(), StatusCode::CREATED);
+        let body = fee_claim_response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
+        let fee_claim: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(fee_claim["status"], "pending_signature");
+    }
+
+    #[tokio::test]
+    async fn lp_can_create_and_settle_withdrawal_intent() {
+        let app = test_app();
+        let lp_token = auth_token(
+            app.clone(),
+            "Atlas LP",
+            "lp",
+            "ckt1qyq000000000000000000000000000000000000lp",
+        )
+        .await;
+
+        let intent = create_supply_intent(app.clone(), &lp_token, 5000).await;
+        settle_supply(
+            app.clone(),
+            &lp_token,
+            &intent,
+            5000,
+            "0x1111111111111111111111111111111111111111111111111111111111111111",
+        )
+        .await;
+
+        let dashboard_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/dashboard")
+                    .header(header::AUTHORIZATION, format!("Bearer {lp_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = dashboard_response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
+        let dashboard: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let position_id = dashboard["positions"][0]["id"].as_str().unwrap();
+        assert_eq!(dashboard["vault"]["available_liquidity"], 5000);
+
+        let withdrawal_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/vault/withdrawals/intents")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::AUTHORIZATION, format!("Bearer {lp_token}"))
+                    .body(Body::from(
+                        json!({"position_id": position_id, "amount": 2000}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(withdrawal_response.status(), StatusCode::CREATED);
+        let body = withdrawal_response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
+        let withdrawal: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let withdrawal_id = withdrawal["id"].as_str().unwrap();
+        assert_eq!(withdrawal["status"], "pending_signature");
+
+        let settle_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/vault/withdrawals/{withdrawal_id}/settle"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::AUTHORIZATION, format!("Bearer {lp_token}"))
+                    .body(Body::from(
+                        json!({
+                            "tx_hash":"0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                            "signed_tx": signed_tx_fixture("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(settle_response.status(), StatusCode::OK);
+
+        let dashboard_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/dashboard")
+                    .header(header::AUTHORIZATION, format!("Bearer {lp_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = dashboard_response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
+        let dashboard: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(dashboard["vault"]["total_deposits"], 3000);
+        assert_eq!(dashboard["vault"]["available_liquidity"], 3000);
+        assert_eq!(dashboard["positions"][0]["supplied_amount"], 3000);
+        assert_eq!(dashboard["withdrawals"][0]["status"], "settled");
     }
 }
