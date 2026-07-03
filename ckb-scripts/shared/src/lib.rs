@@ -16,6 +16,7 @@ use ckb_std::{
 #[macro_export]
 macro_rules! ckb_panic_handler {
     () => {
+        #[cfg(not(target_arch = "riscv64"))]
         #[panic_handler]
         fn panic(_info: &core::panic::PanicInfo) -> ! {
             loop {}

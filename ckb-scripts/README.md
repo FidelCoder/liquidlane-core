@@ -27,7 +27,7 @@ All script arguments are raw 32-byte hashes packed in order. Vault references us
 
 ## Deployment Path
 
-1. Compile each script to a RISC-V CKB binary with the CKB script toolchain.
+1. Compile each script to a RISC-V CKB binary with `scripts/build-ckb-scripts.sh`.
 2. Add transaction-level tests for create, update, close, invalid duplicate groups, bad actor paths, and bad accounting deltas.
 3. Deploy a unique vault instance using CKB's type-id style pattern so the vault accounting cell cannot be cloned with the same args.
 4. Deploy script binaries to testnet cells.

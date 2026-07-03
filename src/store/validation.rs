@@ -160,12 +160,13 @@ pub(super) fn validate_liquidity_request(request: &CreateLiquidityRequest) -> Re
     if request.duration_days == 0 {
         return Err(anyhow!("duration_days must be greater than zero"));
     }
-    if let Some(pubkey) = request.fiber_peer_pubkey.as_deref().map(str::trim) {
-        if !pubkey.is_empty() && !is_fiber_pubkey(pubkey) {
-            return Err(anyhow!(
-                "fiber_peer_pubkey must be a compressed 33-byte hex pubkey"
-            ));
-        }
+    if let Some(pubkey) = request.fiber_peer_pubkey.as_deref().map(str::trim)
+        && !pubkey.is_empty()
+        && !is_fiber_pubkey(pubkey)
+    {
+        return Err(anyhow!(
+            "fiber_peer_pubkey must be a compressed 33-byte hex pubkey"
+        ));
     }
     if let Some(script) = request.funding_udt_type_script.as_ref() {
         validate_script(script)?;

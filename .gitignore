@@ -1,3 +1,5 @@
 /target
 /liquidlane-data.json
 /ckb-scripts/target
+/ckb-scripts/build
+/ckb-scripts/deployments/*.local.json
