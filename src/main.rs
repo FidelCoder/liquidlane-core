@@ -1,5 +1,6 @@
 mod config;
 mod domain;
+mod fiber;
 mod http;
 mod store;
 
@@ -10,6 +11,7 @@ use tracing_subscriber::{EnvFilter, fmt};
 
 use crate::{
     config::AppConfig,
+    fiber::FiberClient,
     http::{AppState, router},
     store::AppStore,
 };
@@ -19,7 +21,11 @@ async fn main() -> anyhow::Result<()> {
     init_tracing();
 
     let config = AppConfig::from_env()?;
-    let store = AppStore::load(config.data_path.clone()).await?;
+    let fiber = FiberClient::new(
+        config.fiber_rpc_url.clone(),
+        config.fiber_rpc_auth_token.clone(),
+    );
+    let store = AppStore::load(config.data_path.clone(), fiber.clone()).await?;
     let app = router(AppState {
         environment: config.environment.clone(),
         store: Arc::new(store),
@@ -30,6 +36,7 @@ async fn main() -> anyhow::Result<()> {
         bind_addr = %config.bind_addr,
         environment = %config.environment,
         data_path = %config.data_path.display(),
+        fiber_rpc_configured = fiber.is_configured(),
         "starting LiquidLane Core"
     );
 
