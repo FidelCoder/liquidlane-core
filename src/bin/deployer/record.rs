@@ -93,3 +93,65 @@ fn record_file_name(tx_hash: &str) -> String {
         .collect::<String>();
     format!("testnet-{}-{short}.json", Utc::now().format("%Y-%m-%d"))
 }
+
+pub fn write_env(scripts: &[ScriptArtifact], receipt: &DeployReceipt) -> Result<()> {
+    let path = PathBuf::from(".env");
+    let mut env = fs::read_to_string(&path).unwrap_or_default();
+    env = set_env(
+        env,
+        "LIQUIDLANE_SCRIPT_DEPLOYMENT_TX_HASH",
+        &receipt.tx_hash,
+    );
+    for (artifact, deployed) in scripts.iter().zip(receipt.scripts.iter()) {
+        if let Some((hash_key, out_point_key)) = env_keys(&artifact.name) {
+            env = set_env(env, hash_key, &artifact.ckb_data_hash);
+            env = set_env(
+                env,
+                out_point_key,
+                &format!(
+                    "{}#{}",
+                    deployed.out_point.tx_hash, deployed.out_point.index
+                ),
+            );
+        }
+    }
+    fs::write(path, env)?;
+    Ok(())
+}
+
+fn env_keys(name: &str) -> Option<(&'static str, &'static str)> {
+    match name {
+        "liquidlane-vault-lock" => Some((
+            "LIQUIDLANE_VAULT_LOCK_CODE_HASH",
+            "LIQUIDLANE_VAULT_LOCK_OUT_POINT",
+        )),
+        "liquidlane-vault-type" => Some((
+            "LIQUIDLANE_VAULT_TYPE_CODE_HASH",
+            "LIQUIDLANE_VAULT_TYPE_OUT_POINT",
+        )),
+        "liquidlane-lp-receipt-type" => Some((
+            "LIQUIDLANE_LP_RECEIPT_TYPE_CODE_HASH",
+            "LIQUIDLANE_LP_RECEIPT_TYPE_OUT_POINT",
+        )),
+        "liquidlane-capacity-request-type" => Some((
+            "LIQUIDLANE_REQUEST_TYPE_CODE_HASH",
+            "LIQUIDLANE_REQUEST_TYPE_OUT_POINT",
+        )),
+        "liquidlane-fee-claim-type" => Some((
+            "LIQUIDLANE_FEE_CLAIM_TYPE_CODE_HASH",
+            "LIQUIDLANE_FEE_CLAIM_TYPE_OUT_POINT",
+        )),
+        _ => None,
+    }
+}
+
+fn set_env(text: String, key: &str, value: &str) -> String {
+    let prefix = format!("{key}=");
+    let mut lines = text.lines().map(str::to_string).collect::<Vec<_>>();
+    if let Some(line) = lines.iter_mut().find(|line| line.starts_with(&prefix)) {
+        *line = format!("{prefix}{value}");
+    } else {
+        lines.push(format!("{prefix}{value}"));
+    }
+    format!("{}\n", lines.join("\n"))
+}

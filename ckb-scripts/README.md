@@ -1,8 +1,8 @@
 # LiquidLane CKB Scripts
 
-This folder contains the CKB-native lock/type script source drafts for the LiquidLane vault layer.
+This folder contains the CKB-native lock/type scripts for the LiquidLane vault layer.
 
-These scripts are not deployed, audited, or wired to a testnet cell yet. They define the intended trust layer so Core and the app stop relying on a normal wallet address for pooled funds.
+The current scripts are deployed on CKB testnet and wired to a live vault cell. They define the trust layer so Core and the app do not rely on a normal wallet address for pooled funds.
 
 ## Services Covered
 
@@ -25,23 +25,21 @@ All script arguments are raw 32-byte hashes packed in order. Vault references us
 | `capacity-request-type` | vault type script hash, merchant lock hash, operator lock hash, request id |
 | `fee-claim-type` | vault type script hash, LP receipt type script hash, LP lock hash, claim id |
 
-## Deployment Path
+## Deployment
 
-Deployment records and explorer templates live in `ckb-scripts/deployments/`. Local builds only have artifact hashes; public confirmation requires CKB testnet transaction hashes and cell out-points.
+Deployment records live in `ckb-scripts/deployments/`. Local builds only have artifact hashes; public confirmation requires CKB testnet transaction hashes and cell out-points.
 
-1. Compile each script to a RISC-V CKB binary with `scripts/build-ckb-scripts.sh`.
-2. Add transaction-level tests for create, update, close, invalid duplicate groups, bad actor paths, and bad accounting deltas.
-3. Deploy a unique vault instance using CKB's type-id style pattern so the vault accounting cell cannot be cloned with the same args.
-4. Deploy script binaries to testnet cells.
-5. Set the resulting code hashes in Core:
+Build VM-safe RISC-V artifacts with:
 
 ```bash
-LIQUIDLANE_VAULT_LOCK_CODE_HASH=0x...
-LIQUIDLANE_VAULT_TYPE_CODE_HASH=0x...
-LIQUIDLANE_LP_RECEIPT_TYPE_CODE_HASH=0x...
-LIQUIDLANE_REQUEST_TYPE_CODE_HASH=0x...
-LIQUIDLANE_FEE_CLAIM_TYPE_CODE_HASH=0x...
-LIQUIDLANE_VAULT_CKB_ADDRESS=ckt1...
+scripts/setup-riscv-toolchain.sh
+export RISCV_TOOLCHAIN_BIN=/tmp/liquidlane-riscv-toolchain/root/usr/bin
+scripts/build-ckb-scripts.sh
 ```
 
-Until that deployment is done, Core should keep reporting the vault as unconfigured instead of showing a placeholder vault address.
+Current testnet records:
+
+- Script deployment: `ckb-scripts/deployments/testnet-2026-07-04-a00be7fdb859.json`
+- Vault cell: `ckb-scripts/deployments/vault-testnet-2026-07-04-477be93d5587.json`
+- Script tx: `0xa00be7fdb8598a58e8938403204e2d55ffdb2806566cbca7a71fc86d82dccb7f`
+- Vault tx: `0x477be93d5587b6ff040858605a0e2c440f6a2e3587fa1bd3dd139391e06b2370`

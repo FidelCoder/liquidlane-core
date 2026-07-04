@@ -211,6 +211,7 @@ pub struct ActivityEvent {
 pub struct VaultConfig {
     pub asset: String,
     pub address: Option<String>,
+    pub cell_out_point: Option<String>,
     pub network: String,
     pub configured: bool,
     pub scripts: VaultScripts,
@@ -219,8 +220,13 @@ pub struct VaultConfig {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VaultScripts {
     pub vault_lock_code_hash: Option<String>,
+    pub vault_lock_out_point: Option<String>,
     pub vault_type_code_hash: Option<String>,
+    pub vault_type_out_point: Option<String>,
     pub lp_receipt_type_code_hash: Option<String>,
+    pub lp_receipt_type_out_point: Option<String>,
     pub request_type_code_hash: Option<String>,
+    pub request_type_out_point: Option<String>,
     pub fee_claim_type_code_hash: Option<String>,
+    pub fee_claim_type_out_point: Option<String>,
 }

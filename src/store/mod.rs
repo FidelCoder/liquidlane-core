@@ -1,5 +1,7 @@
 mod accounting;
 mod auth;
+mod chain_deposit;
+mod chain_types;
 mod dashboard;
 mod liquidity;
 mod settlement;
@@ -85,14 +87,23 @@ impl AppStore {
             vault: VaultConfig {
                 asset: "CKB".to_string(),
                 address: Some("ckt1qpkp7qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq".to_string()),
+                cell_out_point: Some(
+                    "0x0000000000000000000000000000000000000000000000000000000000000000#0x0"
+                        .to_string(),
+                ),
                 network: "testnet".to_string(),
                 configured: true,
                 scripts: crate::domain::VaultScripts {
                     vault_lock_code_hash: None,
+                    vault_lock_out_point: None,
                     vault_type_code_hash: None,
+                    vault_type_out_point: None,
                     lp_receipt_type_code_hash: None,
+                    lp_receipt_type_out_point: None,
                     request_type_code_hash: None,
+                    request_type_out_point: None,
                     fee_claim_type_code_hash: None,
+                    fee_claim_type_out_point: None,
                 },
             },
             inner: RwLock::new(StoreState::default()),
