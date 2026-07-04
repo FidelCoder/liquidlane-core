@@ -39,6 +39,9 @@ impl AppConfig {
         let vault_address = optional_env("LIQUIDLANE_VAULT_CKB_ADDRESS")
             .map(validate_vault_address)
             .transpose()?;
+        let vault_cell_out_point = optional_env("LIQUIDLANE_VAULT_CELL_OUT_POINT")
+            .map(validate_out_point)
+            .transpose()?;
         let require_ckb_rpc = bool_env(
             "LIQUIDLANE_REQUIRE_CKB_RPC",
             environment != "development" && environment != "test",
@@ -48,18 +51,24 @@ impl AppConfig {
                 .unwrap_or_else(|_| "CKB".to_string())
                 .trim()
                 .to_uppercase(),
-            configured: vault_address.is_some(),
+            configured: vault_address.is_some() && vault_cell_out_point.is_some(),
             address: vault_address,
+            cell_out_point: vault_cell_out_point,
             network: env::var("LIQUIDLANE_CKB_NETWORK")
                 .unwrap_or_else(|_| "testnet".to_string())
                 .trim()
                 .to_lowercase(),
             scripts: VaultScripts {
                 vault_lock_code_hash: optional_env("LIQUIDLANE_VAULT_LOCK_CODE_HASH"),
+                vault_lock_out_point: optional_env("LIQUIDLANE_VAULT_LOCK_OUT_POINT"),
                 vault_type_code_hash: optional_env("LIQUIDLANE_VAULT_TYPE_CODE_HASH"),
+                vault_type_out_point: optional_env("LIQUIDLANE_VAULT_TYPE_OUT_POINT"),
                 lp_receipt_type_code_hash: optional_env("LIQUIDLANE_LP_RECEIPT_TYPE_CODE_HASH"),
+                lp_receipt_type_out_point: optional_env("LIQUIDLANE_LP_RECEIPT_TYPE_OUT_POINT"),
                 request_type_code_hash: optional_env("LIQUIDLANE_REQUEST_TYPE_CODE_HASH"),
+                request_type_out_point: optional_env("LIQUIDLANE_REQUEST_TYPE_OUT_POINT"),
                 fee_claim_type_code_hash: optional_env("LIQUIDLANE_FEE_CLAIM_TYPE_CODE_HASH"),
+                fee_claim_type_out_point: optional_env("LIQUIDLANE_FEE_CLAIM_TYPE_OUT_POINT"),
             },
         };
 
@@ -104,4 +113,18 @@ fn bool_env(key: &str, default: bool) -> anyhow::Result<bool> {
         "0" | "false" | "no" | "off" => Ok(false),
         _ => anyhow::bail!("{key} must be a boolean"),
     }
+}
+
+fn validate_out_point(value: String) -> anyhow::Result<String> {
+    let value = value.trim().to_string();
+    let Some((tx_hash, index)) = value.split_once('#') else {
+        anyhow::bail!("CKB out-point must use tx_hash#index format");
+    };
+    if tx_hash.len() != 66 || !tx_hash.starts_with("0x") {
+        anyhow::bail!("CKB out-point tx_hash must be a 0x-prefixed 32-byte hash");
+    }
+    if !index.starts_with("0x") || index.len() < 3 {
+        anyhow::bail!("CKB out-point index must be 0x-prefixed");
+    }
+    Ok(value)
 }

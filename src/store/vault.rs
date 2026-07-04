@@ -76,8 +76,6 @@ impl AppStore {
         validate_deposit_transaction(&request)?;
         let tx_hash = normalize_deposit_tx_hash(&request)
             .ok_or_else(|| anyhow!("supply settlement requires tx_hash"))?;
-        self.verify_ckb_settlement_tx(&tx_hash, &request.signed_tx)
-            .await?;
         let intent_id = request
             .intent_id
             .ok_or_else(|| anyhow!("supply settlement requires intent_id"))?;
@@ -96,6 +94,8 @@ impl AppStore {
         if intent.asset != asset || intent.amount != request.amount {
             return Err(anyhow!("supply settlement does not match the intent"));
         }
+        self.verify_vault_deposit_tx(&tx_hash, &intent, user, &request.signed_tx)
+            .await?;
 
         let now = Utc::now();
         let deposit = Deposit {

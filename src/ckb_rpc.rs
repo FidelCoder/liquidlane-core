@@ -40,6 +40,11 @@ pub struct VerifiedCkbTransaction {
     pub status: String,
 }
 
+#[derive(Debug)]
+pub struct CkbTransactionDetails {
+    pub transaction: Value,
+}
+
 impl CkbRpcClient {
     pub fn new(url: String, accept_pending: bool) -> Self {
         Self {
@@ -47,6 +52,54 @@ impl CkbRpcClient {
             url,
             accept_pending,
         }
+    }
+
+    pub async fn transaction_details(&self, tx_hash: &str) -> Result<CkbTransactionDetails> {
+        let response = self
+            .client
+            .post(&self.url)
+            .json(&json!({
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "get_transaction",
+                "params": [tx_hash]
+            }))
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<RpcResponse<Value>>()
+            .await?;
+
+        if let Some(error) = response.error {
+            return Err(anyhow!(
+                "CKB RPC get_transaction failed: {} ({})",
+                error.message,
+                error.code
+            ));
+        }
+        let result = response
+            .result
+            .ok_or_else(|| anyhow!("CKB transaction was not found on the configured node"))?;
+        let status = result
+            .get("tx_status")
+            .and_then(|status| status.get("status"))
+            .and_then(|status| status.as_str())
+            .ok_or_else(|| anyhow!("CKB transaction status was missing"))?
+            .to_string();
+        let tx_status = TxStatus {
+            status: status.clone(),
+            reason: result
+                .get("tx_status")
+                .and_then(|status| status.get("reason"))
+                .and_then(|reason| reason.as_str())
+                .map(str::to_string),
+        };
+        self.validate_status(tx_hash, tx_status)?;
+        let transaction = result
+            .get("transaction")
+            .cloned()
+            .ok_or_else(|| anyhow!("CKB transaction payload was missing"))?;
+        Ok(CkbTransactionDetails { transaction })
     }
 
     pub async fn verify_transaction(&self, tx_hash: &str) -> Result<VerifiedCkbTransaction> {

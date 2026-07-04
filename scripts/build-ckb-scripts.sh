@@ -15,6 +15,8 @@ if ! rustup target list --installed | grep -qx "$target"; then
   rustup target add "$target"
 fi
 
+export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=-a"
+
 for tool in riscv64-unknown-elf-gcc riscv64-unknown-elf-strip; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     printf '%s is required. Run scripts/setup-riscv-toolchain.sh or install the RISC-V toolchain.\n' "$tool" >&2

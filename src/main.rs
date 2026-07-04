@@ -21,6 +21,7 @@ use crate::{
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    dotenvy::dotenv().ok();
     init_tracing();
 
     let config = AppConfig::from_env()?;
