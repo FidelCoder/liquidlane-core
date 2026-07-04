@@ -1,0 +1,71 @@
+{
+  "network": "ckb-testnet",
+  "rpc_url": "https://testnet.ckb.dev",
+  "explorer_base_url": "https://pudge.explorer.nervos.org",
+  "deployed_at": "2026-07-04T10:49:42.469229168+00:00",
+  "deployer_address": "ckt1qyqxqf7spwqfwlqtyccswl0376fagku9el5q75f2vl",
+  "deployment_tx_hash": "0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463",
+  "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463",
+  "scripts": [
+    {
+      "name": "liquidlane-vault-lock",
+      "size_bytes": 30864,
+      "deployment_tx_hash": "0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463",
+      "code_cell_out_point": {
+        "tx_hash": "0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463",
+        "index": "0x0"
+      },
+      "code_hash": "0xb1c0970dbe6e056f87ce6f55c720f7c6d7379aa42ca057743d90f3b567fe0f4b",
+      "hash_type": "data1",
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463"
+    },
+    {
+      "name": "liquidlane-vault-type",
+      "size_bytes": 30376,
+      "deployment_tx_hash": "0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463",
+      "code_cell_out_point": {
+        "tx_hash": "0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463",
+        "index": "0x1"
+      },
+      "code_hash": "0x387a4baada5734d746e576ed9116ce017dac93703e26f1028b51cacad853138c",
+      "hash_type": "data1",
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463"
+    },
+    {
+      "name": "liquidlane-lp-receipt-type",
+      "size_bytes": 31344,
+      "deployment_tx_hash": "0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463",
+      "code_cell_out_point": {
+        "tx_hash": "0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463",
+        "index": "0x2"
+      },
+      "code_hash": "0x552dae23f3a2c2e82b2d5d9bff4b5c9e9c0c8716e6218542f33ab22de3598288",
+      "hash_type": "data1",
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463"
+    },
+    {
+      "name": "liquidlane-capacity-request-type",
+      "size_bytes": 29152,
+      "deployment_tx_hash": "0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463",
+      "code_cell_out_point": {
+        "tx_hash": "0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463",
+        "index": "0x3"
+      },
+      "code_hash": "0xda8df69831eebf1991f02f8674a20ec6370c3bb1fc14170fec1bee3c1bb46e3a",
+      "hash_type": "data1",
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463"
+    },
+    {
+      "name": "liquidlane-fee-claim-type",
+      "size_bytes": 28856,
+      "deployment_tx_hash": "0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463",
+      "code_cell_out_point": {
+        "tx_hash": "0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463",
+        "index": "0x4"
+      },
+      "code_hash": "0x722b9c2b5c059ce0bc504498c234477e91aca7386d1761b2a7534918c4368ccc",
+      "hash_type": "data1",
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463"
+    }
+  ]
+}

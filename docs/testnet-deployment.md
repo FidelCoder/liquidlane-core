@@ -105,3 +105,21 @@ cargo run
 ```
 
 With `LIQUIDLANE_REQUIRE_CKB_RPC=true`, supply settlement is rejected unless the configured CKB node returns the transaction as accepted. Keep pending transactions disabled for production-style flows.
+
+## Current Testnet Deployment
+
+Deployed on CKB testnet on July 4, 2026.
+
+- Status: committed
+- Deployment transaction: `0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463`
+- Explorer: https://pudge.explorer.nervos.org/transaction/0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463
+- Deployer: `ckt1qyqxqf7spwqfwlqtyccswl0376fagku9el5q75f2vl`
+- Record: `ckb-scripts/deployments/testnet-2026-07-04-eedb45c8ebf8.json`
+
+Code-cell out-points:
+
+- `liquidlane-vault-lock`: `0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463#0x0`
+- `liquidlane-vault-type`: `0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463#0x1`
+- `liquidlane-lp-receipt-type`: `0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463#0x2`
+- `liquidlane-capacity-request-type`: `0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463#0x3`
+- `liquidlane-fee-claim-type`: `0xeedb45c8ebf8bad4b543194c423d20fa3e712860ca21420f55afc66001e00463#0x4`
