@@ -9,6 +9,7 @@ use super::{
         lease_fee, normalize_asset, normalize_optional, normalize_transaction_hash, require_role,
         validate_liquidity_request, validate_pending_intent, validate_transaction_proof,
     },
+    vault_output_out_point,
 };
 use crate::domain::{
     ActivityEvent, CapacityReservation, CreateLiquidityRequest, IntentStatus, LiquidityQuote,
@@ -142,6 +143,9 @@ impl AppStore {
         {
             stored.status = IntentStatus::Settled;
             stored.tx_hash = request_tx_hash.clone();
+        }
+        if let Some(tx_hash) = request_tx_hash.as_deref() {
+            state.vault_cell_out_point = Some(vault_output_out_point(tx_hash));
         }
         state
             .events

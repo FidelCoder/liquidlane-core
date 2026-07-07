@@ -14,13 +14,14 @@ use crate::domain::{
 impl AppStore {
     pub async fn dashboard(&self, user: &User, asset: Option<String>) -> Dashboard {
         let state = self.inner.read().await;
+        let vault = state.vault_config(&self.vault);
         let asset = asset
             .map(|asset| asset.trim().to_uppercase())
             .filter(|asset| !asset.is_empty())
-            .unwrap_or_else(|| self.vault.asset.clone());
+            .unwrap_or_else(|| vault.asset.clone());
         Dashboard {
             user: UserProfile::from(user),
-            vault: state.vault_summary(&self.vault, asset),
+            vault: state.vault_summary(&vault, asset),
             deposits: state.visible_deposits(user),
             positions: state.visible_positions(user),
             liquidity_requests: state.visible_liquidity_requests(user),

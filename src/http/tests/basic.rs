@@ -8,7 +8,8 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 use super::support::{
-    auth_token, create_supply_intent, signed_tx_fixture, test_app, test_app_with_script_build_dir,
+    auth_token, create_supply_intent, settle_supply, signed_tx_fixture, test_app,
+    test_app_with_script_build_dir,
 };
 
 #[tokio::test]
@@ -30,6 +31,37 @@ async fn exposes_active_vault_config() {
     assert_eq!(vault["network"], "testnet");
     assert!(vault["configured"].as_bool().unwrap());
     assert!(vault["address"].as_str().unwrap().starts_with("ckt"));
+}
+
+#[tokio::test]
+async fn supply_settlement_advances_active_vault_cell() {
+    let app = test_app();
+    let lp_token = auth_token(
+        app.clone(),
+        "Atlas LP",
+        "lp",
+        "ckt1qyq000000000000000000000000000000000000lp",
+    )
+    .await;
+    let intent = create_supply_intent(app.clone(), &lp_token, 5000).await;
+    let tx_hash = "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+
+    settle_supply(app.clone(), &lp_token, &intent, 5000, tx_hash).await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/vault")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let vault: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(vault["cell_out_point"], format!("{tx_hash}#0x0"));
 }
 
 #[tokio::test]

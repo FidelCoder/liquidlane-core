@@ -43,7 +43,6 @@ async fn main() -> anyhow::Result<()> {
     .await?;
     let app = router(AppState {
         environment: config.environment.clone(),
-        vault: config.vault.clone(),
         ckb_script_build_dir: config.ckb_script_build_dir.clone(),
         store: Arc::new(store),
     });

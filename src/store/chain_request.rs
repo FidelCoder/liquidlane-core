@@ -29,14 +29,15 @@ impl AppStore {
         };
 
         let transaction = client.transaction_details(tx_hash).await?.transaction;
+        let vault = self.vault_config().await;
         let merchant_lock = script_from_address(&request.ckb_address)?;
-        let vault_lock = vault_lock_script(&self.vault)?;
+        let vault_lock = vault_lock_script(&vault)?;
         let vault_type_code = required_hash(
-            self.vault.scripts.vault_type_code_hash.as_deref(),
+            vault.scripts.vault_type_code_hash.as_deref(),
             "LIQUIDLANE_VAULT_TYPE_CODE_HASH",
         )?;
         let request_type_code = required_hash(
-            self.vault.scripts.request_type_code_hash.as_deref(),
+            vault.scripts.request_type_code_hash.as_deref(),
             "LIQUIDLANE_REQUEST_TYPE_CODE_HASH",
         )?;
 

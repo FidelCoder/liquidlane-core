@@ -8,6 +8,7 @@ use super::{
         normalize_optional, normalize_transaction_hash, require_role, validate_amount,
         validate_pending_intent, validate_transaction_proof,
     },
+    vault_output_out_point,
 };
 use crate::domain::{
     ActivityEvent, CreateFeeClaimRequest, CreateWithdrawalIntentRequest, FeeClaim, IntentStatus,
@@ -89,7 +90,8 @@ impl AppStore {
             .position(|intent| intent.id == id)
             .ok_or_else(|| anyhow!("withdrawal intent not found"))?;
         state.withdrawal_intents[intent_index].status = IntentStatus::Settled;
-        state.withdrawal_intents[intent_index].tx_hash = Some(tx_hash);
+        state.withdrawal_intents[intent_index].tx_hash = Some(tx_hash.clone());
+        state.vault_cell_out_point = Some(vault_output_out_point(&tx_hash));
         let settled = state.withdrawal_intents[intent_index].clone();
         state.events.insert(0, withdrawal_event(user, &settled));
         self.persist_locked(&state).await?;
@@ -164,7 +166,8 @@ impl AppStore {
             .position(|claim| claim.id == id)
             .ok_or_else(|| anyhow!("fee claim intent not found"))?;
         state.fee_claims[claim_index].status = IntentStatus::Settled;
-        state.fee_claims[claim_index].tx_hash = Some(tx_hash);
+        state.fee_claims[claim_index].tx_hash = Some(tx_hash.clone());
+        state.vault_cell_out_point = Some(vault_output_out_point(&tx_hash));
         let settled = state.fee_claims[claim_index].clone();
         state.events.insert(0, fee_claim_event(user, &settled));
         self.persist_locked(&state).await?;

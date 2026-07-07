@@ -10,7 +10,6 @@ use serde_json::json;
 use tower::ServiceExt;
 
 use crate::{
-    domain::{VaultConfig, VaultScripts},
     http::{AppState, router},
     store::AppStore,
 };
@@ -22,28 +21,6 @@ pub(super) fn test_app() -> Router {
 pub(super) fn test_app_with_script_build_dir(ckb_script_build_dir: PathBuf) -> Router {
     router(AppState {
         environment: "test".to_string(),
-        vault: VaultConfig {
-            asset: "CKB".to_string(),
-            address: Some("ckt1qpkp7qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq".to_string()),
-            cell_out_point: Some(
-                "0x0000000000000000000000000000000000000000000000000000000000000000#0x0"
-                    .to_string(),
-            ),
-            network: "testnet".to_string(),
-            configured: true,
-            scripts: VaultScripts {
-                vault_lock_code_hash: None,
-                vault_lock_out_point: None,
-                vault_type_code_hash: None,
-                vault_type_out_point: None,
-                lp_receipt_type_code_hash: None,
-                lp_receipt_type_out_point: None,
-                request_type_code_hash: None,
-                request_type_out_point: None,
-                fee_claim_type_code_hash: None,
-                fee_claim_type_out_point: None,
-            },
-        },
         store: Arc::new(AppStore::memory()),
         ckb_script_build_dir,
     })

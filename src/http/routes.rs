@@ -64,7 +64,7 @@ pub(super) async fn me(AuthedUser(user): AuthedUser) -> impl IntoResponse {
 }
 
 pub(super) async fn vault(State(state): State<AppState>) -> Json<VaultConfig> {
-    Json(state.vault.clone())
+    Json(state.store.vault_config().await)
 }
 
 pub(super) async fn deployment_package(

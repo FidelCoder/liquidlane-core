@@ -34,6 +34,30 @@ struct TxStatus {
     reason: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct GetCellsResult {
+    objects: Vec<CkbLiveCell>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CkbLiveCell {
+    pub out_point: CkbOutPoint,
+    pub output: Value,
+    pub output_data: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CkbOutPoint {
+    pub tx_hash: String,
+    pub index: String,
+}
+
+impl CkbOutPoint {
+    pub fn cell_out_point(&self) -> String {
+        format!("{}#{}", self.tx_hash, self.index)
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct VerifiedCkbTransaction {
     pub tx_hash: String,
@@ -52,6 +76,60 @@ impl CkbRpcClient {
             url,
             accept_pending,
         }
+    }
+
+    pub async fn live_vault_cells_by_code(
+        &self,
+        vault_type_code_hash: &str,
+        vault_lock_code_hash: &str,
+        limit: u32,
+    ) -> Result<Vec<CkbLiveCell>> {
+        let response = self
+            .client
+            .post(&self.url)
+            .json(&json!({
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "get_cells",
+                "params": [
+                    {
+                        "script": {
+                            "code_hash": vault_type_code_hash,
+                            "hash_type": "data1",
+                            "args": "0x"
+                        },
+                        "script_type": "type",
+                        "script_search_mode": "prefix",
+                        "filter": {
+                            "script": {
+                                "code_hash": vault_lock_code_hash,
+                                "hash_type": "data1",
+                                "args": "0x"
+                            },
+                            "script_search_mode": "prefix"
+                        }
+                    },
+                    "asc",
+                    format!("0x{limit:x}")
+                ]
+            }))
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<RpcResponse<GetCellsResult>>()
+            .await?;
+
+        if let Some(error) = response.error {
+            return Err(anyhow!(
+                "CKB RPC get_cells failed: {} ({})",
+                error.message,
+                error.code
+            ));
+        }
+        Ok(response
+            .result
+            .map(|result| result.objects)
+            .unwrap_or_default())
     }
 
     pub async fn transaction_details(&self, tx_hash: &str) -> Result<CkbTransactionDetails> {

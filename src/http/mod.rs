@@ -12,7 +12,7 @@ use axum::{
 };
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
-use crate::{domain::VaultConfig, store::AppStore};
+use crate::store::AppStore;
 
 pub(crate) use auth::AuthedUser;
 pub(crate) use error::ApiError;
@@ -21,7 +21,6 @@ pub(crate) use error::ApiError;
 pub struct AppState {
     pub environment: String,
     pub store: Arc<AppStore>,
-    pub vault: VaultConfig,
     pub ckb_script_build_dir: PathBuf,
 }
 

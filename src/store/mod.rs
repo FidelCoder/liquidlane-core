@@ -1,5 +1,6 @@
 mod accounting;
 mod auth;
+mod chain_address;
 mod chain_deposit;
 mod chain_fee_claim;
 mod chain_request;
@@ -12,6 +13,7 @@ mod request_intent;
 mod settlement;
 mod validation;
 mod vault;
+mod vault_discovery;
 
 use std::path::PathBuf;
 
@@ -58,6 +60,10 @@ struct StoreState {
     request_intents: Vec<RequestIntent>,
     liquidity_requests: Vec<LiquidityRequest>,
     events: Vec<ActivityEvent>,
+    #[serde(default)]
+    vault_address: Option<String>,
+    #[serde(default)]
+    vault_cell_out_point: Option<String>,
 }
 
 impl AppStore {
@@ -117,6 +123,21 @@ impl AppStore {
         }
     }
 
+    pub async fn vault_config(&self) -> VaultConfig {
+        let cached = {
+            let state = self.inner.read().await;
+            state.vault_config(&self.vault)
+        };
+        match self.discover_live_vault_config(&cached).await {
+            Ok(Some(vault)) => vault,
+            Ok(None) => cached,
+            Err(error) => {
+                tracing::warn!(error = %error, "failed to discover live LiquidLane vault cell");
+                cached
+            }
+        }
+    }
+
     async fn verify_ckb_settlement_tx(
         &self,
         tx_hash: &str,
@@ -151,4 +172,22 @@ impl AppStore {
         tokio::fs::write(&self.path, serde_json::to_string_pretty(state)?).await?;
         Ok(())
     }
+}
+
+impl StoreState {
+    fn vault_config(&self, base: &VaultConfig) -> VaultConfig {
+        let mut vault = base.clone();
+        if let Some(address) = self.vault_address.as_ref() {
+            vault.address = Some(address.clone());
+        }
+        if let Some(out_point) = self.vault_cell_out_point.as_ref() {
+            vault.cell_out_point = Some(out_point.clone());
+        }
+        vault.configured = vault.address.is_some() && vault.cell_out_point.is_some();
+        vault
+    }
+}
+
+pub(super) fn vault_output_out_point(tx_hash: &str) -> String {
+    format!("{tx_hash}#0x0")
 }

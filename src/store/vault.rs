@@ -9,6 +9,7 @@ use super::{
         ensure_vault_configured, normalize_asset, normalize_deposit_tx_hash, require_role,
         validate_amount, validate_deposit_transaction, validate_pending_intent, validate_required,
     },
+    vault_output_out_point,
 };
 use crate::domain::{
     ActivityEvent, CreateDepositRequest, CreateSupplyIntentRequest, Deposit, IntentStatus,
@@ -22,14 +23,15 @@ impl AppStore {
         request: CreateSupplyIntentRequest,
     ) -> Result<SupplyIntent> {
         require_role(user, &[UserRole::Lp, UserRole::Operator])?;
-        ensure_vault_configured(&self.vault)?;
+        let vault = self.vault_config().await;
+        ensure_vault_configured(&vault)?;
         validate_amount(request.amount)?;
         validate_required("asset", &request.asset)?;
         let asset = normalize_asset(&request.asset);
-        if asset != self.vault.asset {
+        if asset != vault.asset {
             return Err(anyhow!(
                 "supply asset must match the active {} vault",
-                self.vault.asset
+                vault.asset
             ));
         }
 
@@ -42,9 +44,9 @@ impl AppStore {
             ckb_address: user.ckb_address.clone(),
             asset,
             amount: request.amount,
-            vault_address: self.vault.address.clone().expect("vault configured"),
+            vault_address: vault.address.clone().expect("vault configured"),
             receipt_cell_id: receipt_cell_id(id),
-            memo: format!("LL_SUPPLY:{id}:{}:{}", self.vault.asset, request.amount),
+            memo: format!("LL_SUPPLY:{id}:{}:{}", vault.asset, request.amount),
             status: IntentStatus::PendingSignature,
             tx_hash: None,
             created_at: now,
@@ -66,11 +68,12 @@ impl AppStore {
         validate_amount(request.amount)?;
         validate_required("asset", &request.asset)?;
         let asset = normalize_asset(&request.asset);
-        ensure_vault_configured(&self.vault)?;
-        if asset != self.vault.asset {
+        let vault = self.vault_config().await;
+        ensure_vault_configured(&vault)?;
+        if asset != vault.asset {
             return Err(anyhow!(
                 "supply asset must match the active {} vault",
-                self.vault.asset
+                vault.asset
             ));
         }
         validate_deposit_transaction(&request)?;
@@ -112,7 +115,8 @@ impl AppStore {
         let position = lp_position(user, &deposit, &intent.receipt_cell_id, &tx_hash, now);
 
         state.supply_intents[intent_index].status = IntentStatus::Settled;
-        state.supply_intents[intent_index].tx_hash = Some(tx_hash);
+        state.supply_intents[intent_index].tx_hash = Some(tx_hash.clone());
+        state.vault_cell_out_point = Some(vault_output_out_point(&tx_hash));
         state.events.insert(
             0,
             ActivityEvent {
