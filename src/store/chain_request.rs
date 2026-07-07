@@ -43,7 +43,12 @@ impl AppStore {
         let previous_vault =
             previous_vault_cell(client, &transaction, &vault_lock, &vault_type_code).await?;
         let next_vault = next_vault_cell(&transaction, &vault_lock, &vault_type_code)?;
-        require_vault_reservation_delta(&previous_vault, &next_vault, request.amount)?;
+        require_vault_reservation_delta(
+            &previous_vault,
+            &next_vault,
+            request.amount,
+            request.lease_fee,
+        )?;
 
         let vault_type = next_vault
             .type_script
@@ -136,14 +141,19 @@ fn require_vault_reservation_delta(
     previous: &ChainOutput,
     next: &ChainOutput,
     amount: u64,
+    lease_fee: u64,
 ) -> Result<()> {
     let previous_data = parse_vault_data(&previous.data)?;
     let next_data = parse_vault_data(&next.data)?;
+    let required_capacity = previous
+        .capacity
+        .checked_add(u128::from(lease_fee) * 100_000_000)
+        .ok_or_else(|| anyhow!("request vault capacity delta overflow"))?;
     if next_data.total == previous_data.total
         && next_data.reserved == previous_data.reserved.saturating_add(amount)
         && next_data.deployed == previous_data.deployed
-        && next_data.fee_balance == previous_data.fee_balance
-        && next.capacity >= previous.capacity
+        && next_data.fee_balance == previous_data.fee_balance.saturating_add(lease_fee)
+        && next.capacity >= required_capacity
     {
         return Ok(());
     }

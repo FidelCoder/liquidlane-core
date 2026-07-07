@@ -50,26 +50,14 @@ async fn lp_deposit_then_merchant_request_and_queue_fiber_channel() {
     assert_eq!(dashboard["vault"]["reserved_liquidity"], 3000);
     assert_eq!(dashboard["reservations"][0]["status"], "reserved");
 
-    let deployed = deploy_request(app.clone(), &merchant_token, id).await;
-    assert_eq!(deployed["status"], "pending_fiber_channel");
-    assert!(deployed["channel_id"].is_null());
-    assert!(
-        deployed["fiber_note"]
-            .as_str()
-            .unwrap()
-            .contains("Fiber RPC")
-    );
+    deploy_request_without_fiber_rpc(app.clone(), &merchant_token, id).await;
 
     let dashboard = fetch_dashboard(app.clone(), &lp_token).await;
-    assert_eq!(dashboard["vault"]["reserved_liquidity"], 0);
-    assert_eq!(dashboard["vault"]["deployed_liquidity"], 3000);
-    assert_eq!(dashboard["vault"]["fees_earned"], 30);
-    assert_eq!(dashboard["positions"][0]["fees_earned"], 30);
-    assert_eq!(dashboard["reservations"][0]["status"], "deployed");
-
-    let position_id = dashboard["positions"][0]["id"].as_str().unwrap();
-    let fee_claim = create_fee_claim(app, &lp_token, position_id).await;
-    assert_eq!(fee_claim["status"], "pending_signature");
+    assert_eq!(dashboard["vault"]["reserved_liquidity"], 3000);
+    assert_eq!(dashboard["vault"]["deployed_liquidity"], 0);
+    assert_eq!(dashboard["vault"]["fees_earned"], 0);
+    assert_eq!(dashboard["positions"][0]["fees_earned"], 0);
+    assert_eq!(dashboard["reservations"][0]["status"], "reserved");
 }
 
 async fn create_capacity_request(app: axum::Router, token: &str) -> serde_json::Value {
@@ -91,7 +79,7 @@ async fn create_capacity_request(app: axum::Router, token: &str) -> serde_json::
     response_json(response).await
 }
 
-async fn deploy_request(app: axum::Router, token: &str, id: &str) -> serde_json::Value {
+async fn deploy_request_without_fiber_rpc(app: axum::Router, token: &str, id: &str) {
     let response = app
         .oneshot(
             Request::builder()
@@ -103,27 +91,9 @@ async fn deploy_request(app: axum::Router, token: &str, id: &str) -> serde_json:
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    response_json(response).await
-}
-
-async fn create_fee_claim(app: axum::Router, token: &str, position_id: &str) -> serde_json::Value {
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/vault/fees/claims")
-                .header(header::CONTENT_TYPE, "application/json")
-                .header(header::AUTHORIZATION, format!("Bearer {token}"))
-                .body(Body::from(
-                    json!({"position_id": position_id, "amount": 30}).to_string(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::CREATED);
-    response_json(response).await
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = response_json(response).await;
+    assert!(body["error"].as_str().unwrap().contains("FIBER_RPC_URL"));
 }
 
 async fn fetch_dashboard(app: axum::Router, token: &str) -> serde_json::Value {

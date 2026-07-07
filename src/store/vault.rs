@@ -155,6 +155,7 @@ fn lp_position(
         fees_earned: 0,
         fees_claimed: 0,
         receipt_cell_id: receipt_cell_id.to_string(),
+        receipt_cell_out_point: Some(format!("{tx_hash}#0x1")),
         supply_tx_hash: tx_hash.to_string(),
         status: PositionStatus::Active,
         created_at: now,

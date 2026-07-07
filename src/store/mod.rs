@@ -1,7 +1,9 @@
 mod accounting;
 mod auth;
 mod chain_deposit;
+mod chain_fee_claim;
 mod chain_request;
+mod chain_settlement;
 mod chain_types;
 mod dashboard;
 mod liquidity;

@@ -11,7 +11,7 @@ use super::{ApiError, AppState, AuthedUser};
 use crate::domain::{
     ChallengeRequest, ConnectWalletRequest, CreateDepositRequest, CreateFeeClaimRequest,
     CreateLiquidityRequest, CreateSupplyIntentRequest, CreateWithdrawalIntentRequest,
-    SettleWithdrawalRequest, VaultConfig, VerifyWalletRequest,
+    SettleFeeClaimRequest, SettleWithdrawalRequest, VaultConfig, VerifyWalletRequest,
 };
 
 #[derive(Serialize)]
@@ -129,6 +129,17 @@ pub(super) async fn create_fee_claim(
     Ok((
         StatusCode::CREATED,
         Json(state.store.create_fee_claim(&user, request).await?),
+    ))
+}
+
+pub(super) async fn settle_fee_claim(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+    Path(id): Path<Uuid>,
+    Json(request): Json<SettleFeeClaimRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(
+        state.store.settle_fee_claim(&user, id, request).await?,
     ))
 }
 

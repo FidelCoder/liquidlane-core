@@ -100,6 +100,8 @@ pub struct LpPosition {
     pub fees_earned: u64,
     pub fees_claimed: u64,
     pub receipt_cell_id: String,
+    #[serde(default)]
+    pub receipt_cell_out_point: Option<String>,
     pub supply_tx_hash: String,
     pub status: PositionStatus,
     pub created_at: DateTime<Utc>,
@@ -115,6 +117,17 @@ pub struct CreateWithdrawalIntentRequest {
 #[derive(Clone, Debug, Deserialize)]
 pub struct SettleWithdrawalRequest {
     pub tx_hash: Option<String>,
+    #[serde(default)]
+    pub receipt_cell_out_point: Option<String>,
+    #[serde(default)]
+    pub signed_tx: Option<Value>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct SettleFeeClaimRequest {
+    pub tx_hash: Option<String>,
+    #[serde(default)]
+    pub receipt_cell_out_point: Option<String>,
     #[serde(default)]
     pub signed_tx: Option<Value>,
 }

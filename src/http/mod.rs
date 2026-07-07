@@ -44,6 +44,10 @@ pub fn router(state: AppState) -> Router {
             post(routes::settle_withdrawal),
         )
         .route("/vault/fees/claims", post(routes::create_fee_claim))
+        .route(
+            "/vault/fees/claims/{id}/settle",
+            post(routes::settle_fee_claim),
+        )
         .route("/dashboard", get(routes::dashboard))
         .route("/deposits", post(routes::create_deposit))
         .route("/liquidity/quote", post(routes::create_quote))

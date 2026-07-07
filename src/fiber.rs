@@ -54,15 +54,9 @@ impl FiberClient {
 
     pub async fn open_channel(&self, request: &LiquidityRequest) -> Result<FiberOpenOutcome> {
         let Some(rpc_url) = self.rpc_url.as_deref() else {
-            return Ok(FiberOpenOutcome {
-                rpc_submitted: false,
-                temporary_channel_id: None,
-                channel_id: None,
-                note: Some(
-                    "Fiber RPC is not configured; capacity is reserved for an operator node to open."
-                        .to_string(),
-                ),
-            });
+            return Err(anyhow!(
+                "FIBER_RPC_URL is required before submitting Fiber open_channel"
+            ));
         };
 
         if !(rpc_url.starts_with("http://") || rpc_url.starts_with("https://")) {

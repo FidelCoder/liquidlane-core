@@ -130,7 +130,7 @@ impl StoreState {
     }
 
     fn visible_positions(&self, user: &User) -> Vec<LpPosition> {
-        match user.role {
+        let positions = match user.role {
             UserRole::Operator | UserRole::Merchant => self.lp_positions.clone(),
             UserRole::Lp => self
                 .lp_positions
@@ -138,7 +138,8 @@ impl StoreState {
                 .filter(|position| position.lp_id == user.id)
                 .cloned()
                 .collect(),
-        }
+        };
+        positions.into_iter().map(normalize_position_view).collect()
     }
 
     fn visible_reservations(&self, user: &User) -> Vec<CapacityReservation> {
@@ -210,4 +211,11 @@ fn normalize_request_view(mut request: LiquidityRequest) -> LiquidityRequest {
         request.request_cell_id = request_cell_id(request.id);
     }
     request
+}
+
+fn normalize_position_view(mut position: LpPosition) -> LpPosition {
+    if position.receipt_cell_out_point.is_none() {
+        position.receipt_cell_out_point = Some(format!("{}#0x1", position.supply_tx_hash));
+    }
+    position
 }

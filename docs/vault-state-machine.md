@@ -1,6 +1,6 @@
 # Vault State Machine
 
-LiquidLane Core models the CKB-native vault lifecycle that the app and future on-chain scripts enforce.
+LiquidLane Core models the CKB-native vault lifecycle that the app and deployed CKB scripts enforce.
 
 ## Supply
 
@@ -15,7 +15,7 @@ LiquidLane Core models the CKB-native vault lifecycle that the app and future on
 1. Merchant quotes or submits a capacity request.
 2. Core checks live LP position availability.
 3. Core reserves position balances and creates a request-cell reference.
-4. Fiber channel open is submitted through the configured Fiber RPC, or queued as pending when RPC is not configured.
+4. Fiber channel open is submitted through the configured Fiber RPC. Missing RPC config rejects the operator action before state mutation.
 5. Successful submit moves reserved balance to deployed balance. Failed submit releases it.
 
 ## Withdrawals
@@ -27,7 +27,10 @@ LiquidLane Core models the CKB-native vault lifecycle that the app and future on
 
 ## Fee Claims
 
-`POST /vault/fees/claims` creates a pending claim intent for earned but unclaimed position fees. The final settlement endpoint should be added alongside the CKB script transaction builder.
+1. LP creates `POST /vault/fees/claims` for earned but unclaimed position fees.
+2. Wallet signs and broadcasts the fee-claim transaction that spends the receipt and vault cells.
+3. Client settles with `POST /vault/fees/claims/{id}/settle` using `tx_hash`, `receipt_cell_out_point`, and `signed_tx`.
+4. Core verifies the vault delta, fee-claim cell, and updated receipt before marking fees claimed.
 
 ## Script Layer
 
@@ -38,6 +41,6 @@ CKB does not use EVM contracts. The production trust layer is expressed as lock/
 - merchant request cells
 - fee claim cells
 
-Draft script sources live in `ckb-scripts/`. They now enforce singleton-style group transitions, strict data lengths, and service-specific accounting deltas, but still need CKB toolchain builds, transaction-level tests, external audit, unique type-id style vault deployment, and testnet deployment before protecting real funds.
+Script sources live in `ckb-scripts/`. They enforce singleton-style group transitions, strict data lengths, and service-specific accounting deltas. The current scripts are deployed on CKB testnet for product testing, but they still need external audit and broader transaction-level coverage before protecting real funds.
 
 Core exposes script code-hash configuration so clients can display and validate which script family protects the active vault once those scripts are deployed.

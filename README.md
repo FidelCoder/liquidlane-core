@@ -11,7 +11,7 @@ LiquidLane turns LP stablecoin liquidity into on-demand Fiber payment-channel ca
 3. Core records the deposit only after verifying the broadcast transaction against the active vault and receipt scripts.
 4. Merchants request receive capacity and include a Fiber peer pubkey when they are ready to open a channel.
 5. LiquidLane quotes lease fees and reserves available liquidity.
-6. LiquidLane submits `open_channel` to a configured Fiber node, or marks the request as `pending_fiber_channel` when no node is configured.
+6. LiquidLane submits `open_channel` to a configured Fiber node. If `FIBER_RPC_URL` is missing, Core rejects the operator action and leaves the reservation unchanged.
 7. Fees are only counted as earned after a request reaches `channel_open`.
 
 ## Development
@@ -26,7 +26,7 @@ Configure the active vault with `LIQUIDLANE_VAULT_ASSET`, `LIQUIDLANE_VAULT_CKB_
 
 ## Fiber RPC
 
-Set `FIBER_RPC_URL` to submit channel opens to a Fiber node JSON-RPC endpoint. If it is not set, LiquidLane still reserves capacity but keeps the request in `pending_fiber_channel` without inventing a channel id.
+Set `FIBER_RPC_URL` to submit channel opens to a Fiber node JSON-RPC endpoint. If it is not set, LiquidLane can still supply and reserve capacity, but operator channel submission returns a clear configuration error and does not invent a channel id.
 
 ```bash
 FIBER_RPC_URL=http://127.0.0.1:8227 cargo run
@@ -46,7 +46,7 @@ curl http://localhost:8080/vault
 
 The CKB-native script source drafts live in `ckb-scripts/`. They cover vault custody, vault accounting, LP receipt cells, capacity request cells, and fee claim cells.
 
-The current testnet deployment is recorded in `docs/testnet-deployment.md` and `ckb-scripts/deployments/`. They are still not externally audited and must not be treated as mainnet-ready.
+The current testnet deployment is recorded in `docs/testnet-deployment.md` and `ckb-scripts/deployments/`. Demo readiness is tracked in `docs/testnet-demo-readiness.md`. The scripts are still not externally audited and must not be treated as mainnet-ready.
 
 ## CKB Wallet Session API
 

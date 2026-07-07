@@ -5,13 +5,14 @@ use uuid::Uuid;
 use super::{
     AppStore,
     validation::{
-        normalize_transaction_hash, require_role, validate_amount, validate_pending_intent,
-        validate_transaction_proof,
+        normalize_optional, normalize_transaction_hash, require_role, validate_amount,
+        validate_pending_intent, validate_transaction_proof,
     },
 };
 use crate::domain::{
     ActivityEvent, CreateFeeClaimRequest, CreateWithdrawalIntentRequest, FeeClaim, IntentStatus,
-    LpPosition, PositionStatus, SettleWithdrawalRequest, User, UserRole, WithdrawalIntent,
+    LpPosition, PositionStatus, SettleFeeClaimRequest, SettleWithdrawalRequest, User, UserRole,
+    WithdrawalIntent,
 };
 
 impl AppStore {
@@ -72,20 +73,21 @@ impl AppStore {
         validate_transaction_proof(&request.tx_hash, &request.signed_tx)?;
         let tx_hash = normalize_transaction_hash(&request.tx_hash, &request.signed_tx)
             .ok_or_else(|| anyhow!("withdrawal settlement requires tx_hash"))?;
+        let (intent, position) = self.withdrawal_context(user, id).await?;
+        self.verify_withdrawal_tx(&tx_hash, &intent, &position, user, &request.signed_tx)
+            .await?;
 
         let mut state = self.inner.write().await;
+        settle_position_withdrawal(
+            &mut state.lp_positions,
+            &intent,
+            normalize_optional(&request.receipt_cell_out_point),
+        )?;
         let intent_index = state
             .withdrawal_intents
             .iter()
             .position(|intent| intent.id == id)
             .ok_or_else(|| anyhow!("withdrawal intent not found"))?;
-        let intent = state.withdrawal_intents[intent_index].clone();
-        if user.role != UserRole::Operator && intent.lp_id != user.id {
-            return Err(anyhow!("you can only settle your own withdrawal"));
-        }
-        validate_pending_intent(&intent.status, intent.expires_at)?;
-        settle_position_withdrawal(&mut state.lp_positions, &intent)?;
-
         state.withdrawal_intents[intent_index].status = IntentStatus::Settled;
         state.withdrawal_intents[intent_index].tx_hash = Some(tx_hash);
         let settled = state.withdrawal_intents[intent_index].clone();
@@ -135,6 +137,81 @@ impl AppStore {
         self.persist_locked(&state).await?;
         Ok(claim)
     }
+
+    pub async fn settle_fee_claim(
+        &self,
+        user: &User,
+        id: Uuid,
+        request: SettleFeeClaimRequest,
+    ) -> Result<FeeClaim> {
+        require_role(user, &[UserRole::Lp, UserRole::Operator])?;
+        validate_transaction_proof(&request.tx_hash, &request.signed_tx)?;
+        let tx_hash = normalize_transaction_hash(&request.tx_hash, &request.signed_tx)
+            .ok_or_else(|| anyhow!("fee claim settlement requires tx_hash"))?;
+        let (claim, position) = self.fee_claim_context(user, id).await?;
+        self.verify_fee_claim_tx(&tx_hash, &claim, &position, user, &request.signed_tx)
+            .await?;
+
+        let mut state = self.inner.write().await;
+        settle_position_fee_claim(
+            &mut state.lp_positions,
+            &claim,
+            normalize_optional(&request.receipt_cell_out_point),
+        )?;
+        let claim_index = state
+            .fee_claims
+            .iter()
+            .position(|claim| claim.id == id)
+            .ok_or_else(|| anyhow!("fee claim intent not found"))?;
+        state.fee_claims[claim_index].status = IntentStatus::Settled;
+        state.fee_claims[claim_index].tx_hash = Some(tx_hash);
+        let settled = state.fee_claims[claim_index].clone();
+        state.events.insert(0, fee_claim_event(user, &settled));
+        self.persist_locked(&state).await?;
+        Ok(settled)
+    }
+
+    async fn withdrawal_context(
+        &self,
+        user: &User,
+        id: Uuid,
+    ) -> Result<(WithdrawalIntent, LpPosition)> {
+        let state = self.inner.read().await;
+        let intent = state
+            .withdrawal_intents
+            .iter()
+            .find(|intent| intent.id == id)
+            .ok_or_else(|| anyhow!("withdrawal intent not found"))?;
+        if user.role != UserRole::Operator && intent.lp_id != user.id {
+            return Err(anyhow!("you can only settle your own withdrawal"));
+        }
+        validate_pending_intent(&intent.status, intent.expires_at)?;
+        let position = state
+            .lp_positions
+            .iter()
+            .find(|position| position.id == intent.position_id)
+            .ok_or_else(|| anyhow!("LP position not found"))?;
+        Ok((intent.clone(), position.clone()))
+    }
+
+    async fn fee_claim_context(&self, user: &User, id: Uuid) -> Result<(FeeClaim, LpPosition)> {
+        let state = self.inner.read().await;
+        let claim = state
+            .fee_claims
+            .iter()
+            .find(|claim| claim.id == id)
+            .ok_or_else(|| anyhow!("fee claim intent not found"))?;
+        if user.role != UserRole::Operator && claim.lp_id != user.id {
+            return Err(anyhow!("you can only settle your own fee claim"));
+        }
+        validate_pending_intent(&claim.status, claim.expires_at)?;
+        let position = state
+            .lp_positions
+            .iter()
+            .find(|position| position.id == claim.position_id)
+            .ok_or_else(|| anyhow!("LP position not found"))?;
+        Ok((claim.clone(), position.clone()))
+    }
 }
 
 fn validate_position_owner(user: &User, position: &LpPosition) -> Result<()> {
@@ -147,11 +224,9 @@ fn validate_position_owner(user: &User, position: &LpPosition) -> Result<()> {
 fn settle_position_withdrawal(
     positions: &mut [LpPosition],
     intent: &WithdrawalIntent,
+    receipt_out_point: Option<String>,
 ) -> Result<()> {
-    let position = positions
-        .iter_mut()
-        .find(|position| position.id == intent.position_id)
-        .ok_or_else(|| anyhow!("LP position not found"))?;
+    let position = position_mut(positions, intent.position_id)?;
     if position.available_amount < intent.amount {
         return Err(anyhow!(
             "withdrawal intent exceeds available position balance"
@@ -159,11 +234,38 @@ fn settle_position_withdrawal(
     }
     position.available_amount -= intent.amount;
     position.supplied_amount -= intent.amount;
+    position.receipt_cell_out_point =
+        receipt_out_point.or_else(|| position.receipt_cell_out_point.clone());
     position.updated_at = Utc::now();
     if position.supplied_amount == 0 {
         position.status = PositionStatus::Closed;
+        position.receipt_cell_out_point = None;
     }
     Ok(())
+}
+
+fn settle_position_fee_claim(
+    positions: &mut [LpPosition],
+    claim: &FeeClaim,
+    receipt_out_point: Option<String>,
+) -> Result<()> {
+    let position = position_mut(positions, claim.position_id)?;
+    let claimable = position.fees_earned.saturating_sub(position.fees_claimed);
+    if claimable < claim.amount {
+        return Err(anyhow!("fee claim exceeds claimable position balance"));
+    }
+    position.fees_claimed += claim.amount;
+    position.receipt_cell_out_point =
+        receipt_out_point.or_else(|| position.receipt_cell_out_point.clone());
+    position.updated_at = Utc::now();
+    Ok(())
+}
+
+fn position_mut(positions: &mut [LpPosition], id: Uuid) -> Result<&mut LpPosition> {
+    positions
+        .iter_mut()
+        .find(|position| position.id == id)
+        .ok_or_else(|| anyhow!("LP position not found"))
 }
 
 fn withdrawal_event(user: &User, settled: &WithdrawalIntent) -> ActivityEvent {
@@ -174,6 +276,17 @@ fn withdrawal_event(user: &User, settled: &WithdrawalIntent) -> ActivityEvent {
             "{} withdrew liquidity from the {} vault",
             user.display_name, settled.asset
         ),
+        amount: Some(settled.amount),
+        asset: Some(settled.asset.clone()),
+        created_at: Utc::now(),
+    }
+}
+
+fn fee_claim_event(user: &User, settled: &FeeClaim) -> ActivityEvent {
+    ActivityEvent {
+        id: Uuid::new_v4(),
+        actor_id: user.id,
+        label: format!("{} claimed LP fees", user.display_name),
         amount: Some(settled.amount),
         asset: Some(settled.asset.clone()),
         created_at: Utc::now(),

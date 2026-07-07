@@ -8,6 +8,7 @@ use serde_json::Value;
 const VAULT_DATA_LEN: usize = 33;
 const RECEIPT_DATA_LEN: usize = 41;
 const REQUEST_DATA_LEN: usize = 26;
+const FEE_CLAIM_DATA_LEN: usize = 10;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct ChainScript {
@@ -47,6 +48,12 @@ pub(super) struct RequestData {
     pub amount: u64,
     pub lease_fee: u64,
     pub expiry: u64,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FeeClaimData {
+    pub status: u8,
+    pub amount: u64,
 }
 
 pub(super) fn outputs(transaction: &Value) -> Result<Vec<ChainOutput>> {
@@ -113,6 +120,20 @@ pub(super) fn parse_request_data(data: &[u8]) -> Result<RequestData> {
         return Err(anyhow!("capacity request cell data is invalid"));
     }
     Ok(request)
+}
+
+pub(super) fn parse_fee_claim_data(data: &[u8]) -> Result<FeeClaimData> {
+    if data.len() != FEE_CLAIM_DATA_LEN || data[0] != 1 {
+        return Err(anyhow!("fee claim cell data is invalid"));
+    }
+    let claim = FeeClaimData {
+        status: data[1],
+        amount: le_u64(data, 2)?,
+    };
+    if claim.status > 2 || claim.amount == 0 {
+        return Err(anyhow!("fee claim cell data is invalid"));
+    }
+    Ok(claim)
 }
 
 pub(super) fn script_from_address(address: &str) -> Result<ChainScript> {

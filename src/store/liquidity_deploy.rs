@@ -15,6 +15,11 @@ impl AppStore {
     pub async fn deploy_liquidity(&self, user: &User, id: Uuid) -> Result<LiquidityRequest> {
         require_role(user, &[UserRole::Merchant, UserRole::Operator])?;
         let request = self.authorized_liquidity_request(user, id).await?;
+        if !self.fiber.is_configured() {
+            return Err(anyhow!(
+                "FIBER_RPC_URL is required before submitting Fiber open_channel"
+            ));
+        }
         let outcome = self.fiber.open_channel(&request).await;
 
         let mut state = self.inner.write().await;
@@ -27,7 +32,11 @@ impl AppStore {
         let now = Utc::now();
         let event_label = match outcome {
             Ok(outcome) => {
-                request.status = LiquidityStatus::PendingFiberChannel;
+                request.status = if outcome.channel_id.is_some() {
+                    LiquidityStatus::ChannelOpen
+                } else {
+                    LiquidityStatus::PendingFiberChannel
+                };
                 request.fiber_temporary_channel_id = outcome.temporary_channel_id;
                 request.channel_id = outcome.channel_id;
                 request.fiber_note = outcome.note;
