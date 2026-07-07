@@ -2,11 +2,12 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result, anyhow};
 use ckb_sdk::Address;
-use ckb_types::{core::ScriptHashType, packed::Script, prelude::*};
+use ckb_types::{H256, core::ScriptHashType, packed::Script, prelude::*};
 use serde_json::Value;
 
 const VAULT_DATA_LEN: usize = 33;
 const RECEIPT_DATA_LEN: usize = 41;
+const REQUEST_DATA_LEN: usize = 26;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct ChainScript {
@@ -38,6 +39,14 @@ pub(super) struct ReceiptData {
     pub reserved: u64,
     pub deployed: u64,
     pub claimed: u64,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct RequestData {
+    pub status: u8,
+    pub amount: u64,
+    pub lease_fee: u64,
+    pub expiry: u64,
 }
 
 pub(super) fn outputs(transaction: &Value) -> Result<Vec<ChainOutput>> {
@@ -90,11 +99,31 @@ pub(super) fn parse_receipt_data(data: &[u8]) -> Result<ReceiptData> {
     })
 }
 
+pub(super) fn parse_request_data(data: &[u8]) -> Result<RequestData> {
+    if data.len() != REQUEST_DATA_LEN || data[0] != 1 {
+        return Err(anyhow!("capacity request cell data is invalid"));
+    }
+    let request = RequestData {
+        status: data[1],
+        amount: le_u64(data, 2)?,
+        lease_fee: le_u64(data, 10)?,
+        expiry: le_u64(data, 18)?,
+    };
+    if request.status > 3 || request.amount == 0 || request.lease_fee == 0 || request.expiry == 0 {
+        return Err(anyhow!("capacity request cell data is invalid"));
+    }
+    Ok(request)
+}
+
 pub(super) fn script_from_address(address: &str) -> Result<ChainScript> {
     let address =
         Address::from_str(address).map_err(|err| anyhow!("invalid CKB address: {err}"))?;
     let script: Script = (&address).into();
     script_from_packed(&script)
+}
+
+pub(super) fn script_hash(script: &ChainScript) -> Result<String> {
+    Ok(hex(packed_script(script)?.calc_script_hash().as_slice()))
 }
 
 pub(super) fn required_hash(value: Option<&str>, key: &str) -> Result<String> {
@@ -161,6 +190,28 @@ fn script_from_packed(script: &Script) -> Result<ChainScript> {
         hash_type: hash_type_name(hash_type).to_string(),
         args: hex(script.args().raw_data().as_ref()),
     })
+}
+
+fn packed_script(script: &ChainScript) -> Result<Script> {
+    Ok(Script::new_builder()
+        .code_hash(parse_h256(&script.code_hash)?.pack())
+        .hash_type(parse_hash_type(&script.hash_type)?)
+        .args(hex_bytes(&script.args)?.pack())
+        .build())
+}
+
+fn parse_h256(value: &str) -> Result<H256> {
+    H256::from_str(value.trim_start_matches("0x")).context("expected 32-byte hex hash")
+}
+
+fn parse_hash_type(value: &str) -> Result<ScriptHashType> {
+    match value {
+        "data" => Ok(ScriptHashType::Data),
+        "data1" => Ok(ScriptHashType::Data1),
+        "data2" => Ok(ScriptHashType::Data2),
+        "type" => Ok(ScriptHashType::Type),
+        _ => Err(anyhow!("unsupported script hash type {value}")),
+    }
 }
 
 fn parse_script(value: &Value) -> Result<ChainScript> {

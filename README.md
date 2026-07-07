@@ -7,8 +7,8 @@ LiquidLane turns LP stablecoin liquidity into on-demand Fiber payment-channel ca
 ## Product Flow
 
 1. A user connects a CKB wallet and opens a LiquidLane wallet session.
-2. LPs supply liquidity by confirming a CKB wallet transaction to the active vault returned by Core.
-3. Core records the deposit only after receiving the signed transaction proof for that vault asset.
+2. LPs supply liquidity by signing a CKB vault transaction that spends the active vault cell, updates vault accounting, and mints an LP receipt cell.
+3. Core records the deposit only after verifying the broadcast transaction against the active vault and receipt scripts.
 4. Merchants request receive capacity and include a Fiber peer pubkey when they are ready to open a channel.
 5. LiquidLane quotes lease fees and reserves available liquidity.
 6. LiquidLane submits `open_channel` to a configured Fiber node, or marks the request as `pending_fiber_channel` when no node is configured.
@@ -46,7 +46,7 @@ curl http://localhost:8080/vault
 
 The CKB-native script source drafts live in `ckb-scripts/`. They cover vault custody, vault accounting, LP receipt cells, capacity request cells, and fee claim cells.
 
-They are not deployed or externally audited yet. Use `docs/testnet-deployment.md` to build stripped RISC-V artifacts and generate the deployment manifest, then set the script code-hash environment variables and `LIQUIDLANE_VAULT_CKB_ADDRESS` so Core can expose a real protected vault.
+The current testnet deployment is recorded in `docs/testnet-deployment.md` and `ckb-scripts/deployments/`. They are still not externally audited and must not be treated as mainnet-ready.
 
 ## CKB Wallet Session API
 
@@ -80,7 +80,7 @@ Use the returned bearer token for product APIs.
 
 ## Supply Liquidity API
 
-Supply is a two-step CKB-native flow. Core creates a vault intent, the wallet signs a transaction to the active vault address, then Core settles the intent into an LP position. Bare accounting deposits are rejected.
+Supply is a two-step CKB-native flow. Core creates a vault intent, the wallet signs a transaction that spends the active vault cell and mints an LP receipt cell, then Core settles the intent into an LP position after chain verification. Bare accounting deposits and simple transfers are rejected.
 
 Create a supply intent:
 
@@ -91,7 +91,7 @@ curl -X POST http://localhost:8080/vault/supply/intents \
   -d '{"asset":"CKB","amount":100}'
 ```
 
-Settle the intent after the wallet signs/broadcasts the CKB transaction:
+Settle the intent after the wallet signs and broadcasts the vault update transaction:
 
 ```bash
 curl -X POST http://localhost:8080/deposits \

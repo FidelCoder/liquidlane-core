@@ -48,6 +48,10 @@ pub fn router(state: AppState) -> Router {
         .route("/deposits", post(routes::create_deposit))
         .route("/liquidity/quote", post(routes::create_quote))
         .route(
+            "/liquidity/request/intents",
+            post(routes::create_request_intent),
+        )
+        .route(
             "/liquidity/requests",
             post(routes::create_liquidity_request),
         )

@@ -22,8 +22,10 @@ pub struct Dashboard {
 pub struct VaultSummary {
     pub asset: String,
     pub address: Option<String>,
+    pub cell_out_point: Option<String>,
     pub network: String,
     pub configured: bool,
+    pub scripts: VaultScripts,
     pub total_deposits: u64,
     pub reserved_liquidity: u64,
     pub pending_channel_liquidity: u64,

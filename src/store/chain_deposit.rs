@@ -5,7 +5,8 @@ use super::{
     AppStore,
     chain_types::{
         ChainOutput, ChainScript, array, hex_index, output_at, outputs, parse_receipt_data,
-        parse_vault_data, required_hash, script_from_address, string_field, type_code_matches,
+        parse_vault_data, required_hash, script_from_address, script_hash, string_field,
+        type_code_matches,
     },
 };
 use crate::domain::{SupplyIntent, User};
@@ -36,6 +37,14 @@ impl AppStore {
             self.vault.scripts.lp_receipt_type_code_hash.as_deref(),
             "LIQUIDLANE_LP_RECEIPT_TYPE_CODE_HASH",
         )?;
+        let request_type_code = required_hash(
+            self.vault.scripts.request_type_code_hash.as_deref(),
+            "LIQUIDLANE_REQUEST_TYPE_CODE_HASH",
+        )?;
+        let fee_claim_type_code = required_hash(
+            self.vault.scripts.fee_claim_type_code_hash.as_deref(),
+            "LIQUIDLANE_FEE_CLAIM_TYPE_CODE_HASH",
+        )?;
 
         let (previous_vault, previous_type) =
             previous_vault_cell(client, &current, &vault_lock, &vault_type_code).await?;
@@ -43,6 +52,14 @@ impl AppStore {
         let receipt = receipt_cell(&current, &user_lock, &receipt_type_code)?;
 
         require_vault_delta(previous_vault, next_vault, intent.amount)?;
+        require_receipt_identity(
+            &receipt,
+            &previous_type,
+            &user_lock,
+            &request_type_code,
+            &fee_claim_type_code,
+            intent,
+        )?;
         require_receipt(receipt, intent.amount)
     }
 }
@@ -145,6 +162,35 @@ fn require_vault_delta(previous: ChainOutput, next: ChainOutput, amount: u64) ->
     Ok(())
 }
 
+fn require_receipt_identity(
+    output: &ChainOutput,
+    vault_type: &ChainScript,
+    user_lock: &ChainScript,
+    request_type_code: &str,
+    fee_claim_type_code: &str,
+    intent: &SupplyIntent,
+) -> Result<()> {
+    let Some(receipt_type) = output.type_script.as_ref() else {
+        return Err(anyhow!(
+            "supply transaction LP receipt type script is missing"
+        ));
+    };
+    let expected_args = join_hex(&[
+        script_hash(vault_type)?,
+        script_hash(user_lock)?,
+        request_type_code.to_string(),
+        fee_claim_type_code.to_string(),
+        asset_id(&intent.asset),
+        intent_id(&intent.id),
+    ]);
+    if receipt_type.hash_type != "data1" || receipt_type.args != expected_args {
+        return Err(anyhow!(
+            "supply transaction LP receipt type args do not match the supply intent"
+        ));
+    }
+    Ok(())
+}
+
 fn require_receipt(output: ChainOutput, amount: u64) -> Result<()> {
     let receipt = parse_receipt_data(&output.data)?;
     if receipt.supplied == amount
@@ -156,6 +202,52 @@ fn require_receipt(output: ChainOutput, amount: u64) -> Result<()> {
         return Ok(());
     }
     Err(anyhow!("supply transaction LP receipt data is invalid"))
+}
+
+fn join_hex(values: &[String]) -> String {
+    let mut out = String::from("0x");
+    for value in values {
+        out.push_str(value.trim_start_matches("0x"));
+    }
+    out
+}
+
+fn asset_id(asset: &str) -> String {
+    let mut bytes = [0u8; 32];
+    for (index, byte) in asset
+        .trim()
+        .to_ascii_uppercase()
+        .bytes()
+        .take(32)
+        .enumerate()
+    {
+        bytes[index] = byte;
+    }
+    hex(&bytes)
+}
+
+fn intent_id(id: &uuid::Uuid) -> String {
+    let mut raw = id
+        .to_string()
+        .chars()
+        .filter(|ch| ch.is_ascii_hexdigit())
+        .take(64)
+        .collect::<String>();
+    while raw.len() < 64 {
+        raw.push('0');
+    }
+    format!("0x{raw}")
+}
+
+fn hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(2 + bytes.len() * 2);
+    out.push_str("0x");
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    out
 }
 
 fn vault_lock_script(vault: &crate::domain::VaultConfig) -> Result<ChainScript> {
