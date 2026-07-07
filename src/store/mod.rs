@@ -1,9 +1,12 @@
 mod accounting;
 mod auth;
 mod chain_deposit;
+mod chain_request;
 mod chain_types;
 mod dashboard;
 mod liquidity;
+mod liquidity_deploy;
+mod request_intent;
 mod settlement;
 mod validation;
 mod vault;
@@ -20,7 +23,7 @@ use crate::{
     ckb_rpc::{CkbRpcClient, explicit_transaction_hash},
     domain::{
         ActivityEvent, AuthChallenge, CapacityReservation, Deposit, FeeClaim, LiquidityRequest,
-        LpPosition, SupplyIntent, User, VaultConfig, WithdrawalIntent,
+        LpPosition, RequestIntent, SupplyIntent, User, VaultConfig, WithdrawalIntent,
     },
     fiber::FiberClient,
 };
@@ -49,6 +52,8 @@ struct StoreState {
     fee_claims: Vec<FeeClaim>,
     #[serde(default)]
     capacity_reservations: Vec<CapacityReservation>,
+    #[serde(default)]
+    request_intents: Vec<RequestIntent>,
     liquidity_requests: Vec<LiquidityRequest>,
     events: Vec<ActivityEvent>,
 }

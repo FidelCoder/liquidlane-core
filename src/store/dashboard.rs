@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use super::{
     AppStore, StoreState,
+    accounting::request_cell_id,
     validation::{is_product_activity, is_verified_deposit},
 };
 use crate::domain::{
@@ -96,8 +97,10 @@ impl StoreState {
         VaultSummary {
             asset,
             address: vault.address.clone(),
+            cell_out_point: vault.cell_out_point.clone(),
             network: vault.network.clone(),
             configured: vault.configured,
+            scripts: vault.scripts.clone(),
             total_deposits,
             reserved_liquidity,
             pending_channel_liquidity,
@@ -175,7 +178,7 @@ impl StoreState {
     }
 
     fn visible_liquidity_requests(&self, user: &User) -> Vec<LiquidityRequest> {
-        match user.role {
+        let requests = match user.role {
             UserRole::Operator | UserRole::Lp => self.liquidity_requests.clone(),
             UserRole::Merchant => self
                 .liquidity_requests
@@ -183,7 +186,8 @@ impl StoreState {
                 .filter(|request| request.merchant_id == user.id)
                 .cloned()
                 .collect(),
-        }
+        };
+        requests.into_iter().map(normalize_request_view).collect()
     }
 
     fn visible_activity(&self, user: &User) -> Vec<ActivityEvent> {
@@ -199,4 +203,11 @@ impl StoreState {
             .cloned()
             .collect()
     }
+}
+
+fn normalize_request_view(mut request: LiquidityRequest) -> LiquidityRequest {
+    if request.request_cell_id.trim().is_empty() {
+        request.request_cell_id = request_cell_id(request.id);
+    }
+    request
 }

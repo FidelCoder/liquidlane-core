@@ -151,6 +151,17 @@ pub(super) async fn create_quote(
     Ok(Json(state.store.quote(&user, &request).await?))
 }
 
+pub(super) async fn create_request_intent(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+    Json(request): Json<CreateLiquidityRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok((
+        StatusCode::CREATED,
+        Json(state.store.create_request_intent(&user, request).await?),
+    ))
+}
+
 pub(super) async fn create_liquidity_request(
     State(state): State<AppState>,
     AuthedUser(user): AuthedUser,
