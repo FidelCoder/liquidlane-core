@@ -32,7 +32,11 @@ impl AppConfig {
             .ok()
             .filter(|value| !value.trim().is_empty());
         let ckb_rpc_url = optional_env("LIQUIDLANE_CKB_RPC_URL");
-        let ckb_accept_pending_txs = bool_env("LIQUIDLANE_CKB_ACCEPT_PENDING_TXS", false)?;
+        let ckb_network = env::var("LIQUIDLANE_CKB_NETWORK")
+            .unwrap_or_else(|_| "testnet".to_string())
+            .trim()
+            .to_lowercase();
+        let ckb_accept_pending_txs = ckb_accept_pending_txs(&ckb_network)?;
         let ckb_script_build_dir = env::var("LIQUIDLANE_CKB_SCRIPT_BUILD_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("./ckb-scripts/build"));
@@ -54,10 +58,7 @@ impl AppConfig {
             configured: vault_address.is_some() && vault_cell_out_point.is_some(),
             address: vault_address,
             cell_out_point: vault_cell_out_point,
-            network: env::var("LIQUIDLANE_CKB_NETWORK")
-                .unwrap_or_else(|_| "testnet".to_string())
-                .trim()
-                .to_lowercase(),
+            network: ckb_network,
             scripts: VaultScripts {
                 vault_lock_code_hash: optional_env("LIQUIDLANE_VAULT_LOCK_CODE_HASH"),
                 vault_lock_out_point: optional_env("LIQUIDLANE_VAULT_LOCK_OUT_POINT"),
@@ -94,6 +95,20 @@ fn optional_env(key: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+fn ckb_accept_pending_txs(network: &str) -> anyhow::Result<bool> {
+    if is_testnet_network(network) {
+        return Ok(true);
+    }
+    bool_env("LIQUIDLANE_CKB_ACCEPT_PENDING_TXS", false)
+}
+
+fn is_testnet_network(network: &str) -> bool {
+    matches!(
+        network.trim().to_ascii_lowercase().as_str(),
+        "testnet" | "ckb-testnet" | "pudge" | "pudge-testnet"
+    )
+}
+
 fn validate_vault_address(address: String) -> anyhow::Result<String> {
     if is_plausible_ckb_address(&address) {
         return Ok(address);
@@ -127,4 +142,17 @@ fn validate_out_point(value: String) -> anyhow::Result<String> {
         anyhow::bail!("CKB out-point index must be 0x-prefixed");
     }
     Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_testnet_network;
+
+    #[test]
+    fn treats_pudge_as_testnet() {
+        assert!(is_testnet_network("testnet"));
+        assert!(is_testnet_network("ckb-testnet"));
+        assert!(is_testnet_network("pudge-testnet"));
+        assert!(!is_testnet_network("mainnet"));
+    }
 }

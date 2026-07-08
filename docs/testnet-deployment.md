@@ -55,7 +55,7 @@ Required outside Git:
 
 Optional but recommended:
 
-- `LIQUIDLANE_CKB_ACCEPT_PENDING_TXS=false` until the transaction is committed.
+- `LIQUIDLANE_CKB_ACCEPT_PENDING_TXS=true` for testnet browser flows; Core records mempool-accepted transactions and keeps the hash visible while CKB commits it.
 - a deployment record JSON copied from `ckb-scripts/deployments/testnet.template.json`.
 
 ## Deployment Record
@@ -99,11 +99,11 @@ For real settlement verification, run Core with:
 ```bash
 LIQUIDLANE_CKB_RPC_URL=https://testnet.ckb.dev/rpc \
 LIQUIDLANE_REQUIRE_CKB_RPC=true \
-LIQUIDLANE_CKB_ACCEPT_PENDING_TXS=false \
+LIQUIDLANE_CKB_ACCEPT_PENDING_TXS=true \
 cargo run
 ```
 
-With `LIQUIDLANE_REQUIRE_CKB_RPC=true`, supply settlement is rejected unless the configured CKB node returns the transaction as accepted. Keep pending transactions disabled for production-style flows.
+With `LIQUIDLANE_REQUIRE_CKB_RPC=true`, supply settlement is rejected unless the configured CKB node returns the transaction as accepted. On CKB testnet, Core accepts `pending` and `proposed` transactions so the dapp can show a submitted receipt immediately after wallet broadcast; mainnet should keep committed-only settlement unless explicitly changed.
 
 ## Current Testnet Deployment
 
