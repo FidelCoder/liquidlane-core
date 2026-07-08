@@ -132,6 +132,61 @@ impl CkbRpcClient {
             .unwrap_or_default())
     }
 
+    pub async fn live_cells_by_lock_and_type_code(
+        &self,
+        lock_code_hash: &str,
+        lock_hash_type: &str,
+        lock_args: &str,
+        type_code_hash: &str,
+        limit: u32,
+    ) -> Result<Vec<CkbLiveCell>> {
+        let response = self
+            .client
+            .post(&self.url)
+            .json(&json!({
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "get_cells",
+                "params": [
+                    {
+                        "script": {
+                            "code_hash": lock_code_hash,
+                            "hash_type": lock_hash_type,
+                            "args": lock_args
+                        },
+                        "script_type": "lock",
+                        "filter": {
+                            "script": {
+                                "code_hash": type_code_hash,
+                                "hash_type": "data1",
+                                "args": "0x"
+                            },
+                            "script_search_mode": "prefix"
+                        }
+                    },
+                    "asc",
+                    format!("0x{limit:x}")
+                ]
+            }))
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<RpcResponse<GetCellsResult>>()
+            .await?;
+
+        if let Some(error) = response.error {
+            return Err(anyhow!(
+                "CKB RPC get_cells failed: {} ({})",
+                error.message,
+                error.code
+            ));
+        }
+        Ok(response
+            .result
+            .map(|result| result.objects)
+            .unwrap_or_default())
+    }
+
     pub async fn transaction_details(&self, tx_hash: &str) -> Result<CkbTransactionDetails> {
         let response = self
             .client

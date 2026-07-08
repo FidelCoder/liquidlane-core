@@ -13,12 +13,15 @@ use crate::domain::{
 
 impl AppStore {
     pub async fn dashboard(&self, user: &User, asset: Option<String>) -> Dashboard {
-        let state = self.inner.read().await;
-        let vault = state.vault_config(&self.vault);
+        let vault = self.vault_config().await;
         let asset = asset
             .map(|asset| asset.trim().to_uppercase())
             .filter(|asset| !asset.is_empty())
             .unwrap_or_else(|| vault.asset.clone());
+        if let Err(error) = self.sync_user_lp_receipts(user, &asset, &vault).await {
+            tracing::warn!(error = %error, "failed to sync LP receipt cells from CKB");
+        }
+        let state = self.inner.read().await;
         Dashboard {
             user: UserProfile::from(user),
             vault: state.vault_summary(&vault, asset),
