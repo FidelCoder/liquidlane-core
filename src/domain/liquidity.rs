@@ -15,6 +15,8 @@ pub struct CreateLiquidityRequest {
     #[serde(default)]
     pub fiber_peer_pubkey: Option<String>,
     #[serde(default)]
+    pub fiber_peer_address: Option<String>,
+    #[serde(default)]
     pub public_channel: Option<bool>,
     #[serde(default)]
     pub funding_udt_type_script: Option<CkbScript>,
@@ -50,6 +52,8 @@ pub struct RequestIntent {
     pub routing_fee_bps: u16,
     #[serde(default)]
     pub fiber_peer_pubkey: Option<String>,
+    #[serde(default)]
+    pub fiber_peer_address: Option<String>,
     #[serde(default = "default_public_channel")]
     pub public_channel: bool,
     #[serde(default)]
@@ -77,6 +81,8 @@ pub struct LiquidityRequest {
     pub routing_fee_bps: u16,
     #[serde(default)]
     pub fiber_peer_pubkey: Option<String>,
+    #[serde(default)]
+    pub fiber_peer_address: Option<String>,
     #[serde(default = "default_public_channel")]
     pub public_channel: bool,
     #[serde(default)]

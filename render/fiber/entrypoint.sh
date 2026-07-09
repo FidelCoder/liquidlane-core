@@ -1,0 +1,70 @@
+#!/bin/sh
+set -eu
+
+: "${FIBER_SECRET_KEY_PASSWORD:?FIBER_SECRET_KEY_PASSWORD is required}"
+
+BASE_DIR="${FIBER_BASE_DIR:-/fiber}"
+RPC_PORT="${PORT:-8227}"
+P2P_PORT="${FIBER_P2P_PORT:-8228}"
+CKB_RPC_URL="${FIBER_CKB_RPC_URL:-https://testnet.ckb.dev/rpc}"
+
+mkdir -p "$BASE_DIR/ckb"
+if [ -n "${FIBER_CKB_PRIVATE_KEY:-}" ] && [ ! -s "$BASE_DIR/ckb/key" ]; then
+  printf "%s" "$FIBER_CKB_PRIVATE_KEY" > "$BASE_DIR/ckb/key"
+  chmod 600 "$BASE_DIR/ckb/key" || true
+fi
+
+cat > "$BASE_DIR/config.yml" <<EOF
+fiber:
+  listening_addr: "/ip4/0.0.0.0/tcp/${P2P_PORT}"
+  announced_node_name: "liquidlane-testnet-render"
+  bootnode_addrs:
+    - "/ip4/54.179.226.154/tcp/8228/p2p/Qmes1EBD4yNo9Ywkfe6eRw9tG1nVNGLDmMud1xJMsoYFKy"
+    - "/ip4/16.163.7.105/tcp/8228/p2p/QmdyQWjPtbK4NWWsvy8s69NGJaQULwgeQDT5ZpNDrTNaeV"
+  announce_listening_addr: false
+  chain: testnet
+  scripts:
+    - name: FundingLock
+      script:
+        code_hash: 0x6c67887fe201ee0c7853f1682c0b77c0e6214044c156c7558269390a8afa6d7c
+        hash_type: type
+        args: 0x
+      cell_deps:
+        - type_id:
+            code_hash: 0x00000000000000000000000000000000000000000000000000545950455f4944
+            hash_type: type
+            args: 0x3cb7c0304fe53f75bb5727e2484d0beae4bd99d979813c6fc97c3cca569f10f6
+        - cell_dep:
+            out_point:
+              tx_hash: 0x12c569a258dd9c5bd99f632bb8314b1263b90921ba31496467580d6b79dd14a7
+              index: 0x0
+            dep_type: code
+    - name: CommitmentLock
+      script:
+        code_hash: 0x740dee83f87c6f309824d8fd3fbdd3c8380ee6fc9acc90b1a748438afcdf81d8
+        hash_type: type
+        args: 0x
+      cell_deps:
+        - type_id:
+            code_hash: 0x00000000000000000000000000000000000000000000000000545950455f4944
+            hash_type: type
+            args: 0xf7e458887495cf70dd30d1543cad47dc1dfe9d874177bf19291e4db478d5751b
+        - cell_dep:
+            out_point:
+              tx_hash: 0x12c569a258dd9c5bd99f632bb8314b1263b90921ba31496467580d6b79dd14a7
+              index: 0x0
+            dep_type: code
+
+rpc:
+  listening_addr: "0.0.0.0:${RPC_PORT}"
+
+ckb:
+  rpc_url: "${CKB_RPC_URL}"
+
+services:
+  - fiber
+  - rpc
+  - ckb
+EOF
+
+exec fnn -c "$BASE_DIR/config.yml" -d "$BASE_DIR"

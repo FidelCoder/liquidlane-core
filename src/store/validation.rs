@@ -166,6 +166,14 @@ pub(super) fn validate_liquidity_request(request: &CreateLiquidityRequest) -> Re
             "fiber_peer_pubkey must be a compressed 33-byte hex pubkey"
         ));
     }
+    if let Some(address) = request.fiber_peer_address.as_deref().map(str::trim)
+        && !address.is_empty()
+        && !is_fiber_multiaddr(address)
+    {
+        return Err(anyhow!(
+            "fiber_peer_address must be a Fiber multiaddr ending in /p2p/<peer_id>"
+        ));
+    }
     if let Some(script) = request.funding_udt_type_script.as_ref() {
         validate_script(script)?;
     }
@@ -249,4 +257,11 @@ fn validate_hex_field(field: &str, value: &str, expected_len: usize) -> Result<(
 fn is_fiber_pubkey(pubkey: &str) -> bool {
     let raw = pubkey.strip_prefix("0x").unwrap_or(pubkey);
     raw.len() == 66 && raw.chars().all(|ch| ch.is_ascii_hexdigit())
+}
+
+fn is_fiber_multiaddr(address: &str) -> bool {
+    address.len() <= 512
+        && address.starts_with('/')
+        && address.contains("/p2p/")
+        && !address.chars().any(char::is_whitespace)
 }

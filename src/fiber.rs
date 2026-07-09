@@ -67,7 +67,7 @@ impl FiberClient {
             ));
         }
 
-        self.connect_peer(rpc_url, peer_pubkey).await?;
+        self.connect_peer(rpc_url, request).await?;
 
         let mut params = Map::new();
         params.insert("pubkey".to_string(), Value::String(peer_pubkey.to_string()));
@@ -119,11 +119,13 @@ impl FiberClient {
         Ok(rpc_url)
     }
 
-    async fn connect_peer(&self, rpc_url: &str, peer_pubkey: &str) -> Result<()> {
-        let params = json!({
-            "pubkey": peer_pubkey,
-            "save": true,
-        });
+    async fn connect_peer(&self, rpc_url: &str, request: &LiquidityRequest) -> Result<()> {
+        let peer_pubkey = request.fiber_peer_pubkey.as_deref().unwrap_or_default();
+        let params = if let Some(address) = request.fiber_peer_address.as_deref() {
+            json!({ "address": address, "save": true })
+        } else {
+            json!({ "pubkey": peer_pubkey, "save": true })
+        };
         self.rpc_call(
             rpc_url,
             "connect_peer",

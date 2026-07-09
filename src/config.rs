@@ -25,9 +25,8 @@ impl AppConfig {
         let data_path = env::var("LIQUIDLANE_DATA_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("./liquidlane-data.json"));
-        let fiber_rpc_url = env::var("FIBER_RPC_URL")
-            .ok()
-            .filter(|value| !value.trim().is_empty());
+        let fiber_rpc_url =
+            optional_env("FIBER_RPC_URL").or_else(|| production_fiber_rpc_url(&environment));
         let fiber_rpc_auth_token = env::var("FIBER_RPC_AUTH_TOKEN")
             .ok()
             .filter(|value| !value.trim().is_empty());
@@ -98,6 +97,11 @@ fn optional_env(key: &str) -> Option<String> {
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+}
+
+fn production_fiber_rpc_url(environment: &str) -> Option<String> {
+    (environment.trim().eq_ignore_ascii_case("production"))
+        .then(|| "https://liquidlane-fiber.onrender.com".to_string())
 }
 
 fn ckb_accept_pending_txs(network: &str) -> anyhow::Result<bool> {

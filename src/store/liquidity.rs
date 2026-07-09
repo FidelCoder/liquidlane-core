@@ -99,6 +99,7 @@ impl AppStore {
             lease_fee: quote.lease_fee,
             routing_fee_bps: quote.routing_fee_bps,
             fiber_peer_pubkey: normalize_optional(&request.fiber_peer_pubkey),
+            fiber_peer_address: normalize_optional(&request.fiber_peer_address),
             public_channel: request.public_channel.unwrap_or(true),
             funding_udt_type_script: request.funding_udt_type_script.clone(),
             request_cell_id: intent
@@ -184,6 +185,7 @@ fn require_intent_matches(
         && intent.lease_fee == quote.lease_fee
         && intent.routing_fee_bps == quote.routing_fee_bps
         && intent.fiber_peer_pubkey == normalize_optional(&request.fiber_peer_pubkey)
+        && intent.fiber_peer_address == normalize_optional(&request.fiber_peer_address)
         && intent.public_channel == request.public_channel.unwrap_or(true);
     if same_request {
         Ok(())
