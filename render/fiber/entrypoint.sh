@@ -7,12 +7,20 @@ BASE_DIR="${FIBER_BASE_DIR:-/fiber}"
 RPC_PORT="${PORT:-8227}"
 P2P_PORT="${FIBER_P2P_PORT:-8228}"
 CKB_RPC_URL="${FIBER_CKB_RPC_URL:-https://testnet.ckb.dev/rpc}"
+RPC_BISCUIT_PUBLIC_KEY="${FIBER_RPC_BISCUIT_PUBLIC_KEY:-${RPC_BISCUIT_PUBLIC_KEY:-}}"
+RPC_AUTH_CONFIG=""
+if [ -n "$RPC_BISCUIT_PUBLIC_KEY" ]; then
+  RPC_AUTH_CONFIG="  biscuit_public_key: \"$RPC_BISCUIT_PUBLIC_KEY\""
+fi
 
 mkdir -p "$BASE_DIR/ckb"
 if [ -n "${FIBER_CKB_PRIVATE_KEY:-}" ] && [ ! -s "$BASE_DIR/ckb/key" ]; then
   printf "%s" "$FIBER_CKB_PRIVATE_KEY" > "$BASE_DIR/ckb/key"
-  chmod 600 "$BASE_DIR/ckb/key" || true
+elif [ ! -s "$BASE_DIR/ckb/key" ]; then
+  echo "FIBER_CKB_PRIVATE_KEY is not set; generating an unfunded ephemeral testnet key."
+  openssl rand -hex 32 > "$BASE_DIR/ckb/key"
 fi
+chmod 600 "$BASE_DIR/ckb/key" || true
 
 cat > "$BASE_DIR/config.yml" <<EOF
 fiber:
@@ -57,6 +65,7 @@ fiber:
 
 rpc:
   listening_addr: "0.0.0.0:${RPC_PORT}"
+${RPC_AUTH_CONFIG}
 
 ckb:
   rpc_url: "${CKB_RPC_URL}"
