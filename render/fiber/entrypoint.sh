@@ -14,10 +14,12 @@ if [ -n "$RPC_BISCUIT_PUBLIC_KEY" ]; then
 fi
 
 mkdir -p "$BASE_DIR/ckb"
-if [ -n "${FIBER_CKB_PRIVATE_KEY:-}" ] && [ ! -s "$BASE_DIR/ckb/key" ]; then
+if [ -n "${FIBER_CKB_PRIVATE_KEY_B64:-}" ] && [ ! -s "$BASE_DIR/ckb/key" ]; then
+  printf "%s" "$FIBER_CKB_PRIVATE_KEY_B64" | base64 -d > "$BASE_DIR/ckb/key"
+elif [ -n "${FIBER_CKB_PRIVATE_KEY:-}" ] && [ ! -s "$BASE_DIR/ckb/key" ]; then
   printf "%s" "$FIBER_CKB_PRIVATE_KEY" > "$BASE_DIR/ckb/key"
 elif [ ! -s "$BASE_DIR/ckb/key" ]; then
-  echo "FIBER_CKB_PRIVATE_KEY is not set; generating an unfunded ephemeral testnet key."
+  echo "FIBER_CKB_PRIVATE_KEY_B64 is not set; generating an unfunded ephemeral testnet key."
   openssl rand -hex 32 > "$BASE_DIR/ckb/key"
 fi
 chmod 600 "$BASE_DIR/ckb/key" || true
