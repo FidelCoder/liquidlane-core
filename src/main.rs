@@ -44,6 +44,8 @@ async fn main() -> anyhow::Result<()> {
     let app = router(AppState {
         environment: config.environment.clone(),
         ckb_script_build_dir: config.ckb_script_build_dir.clone(),
+        fiber_rpc_configured: fiber.is_configured(),
+        ckb_rpc_configured: config.ckb_rpc_url.is_some(),
         store: Arc::new(store),
     });
     let listener = TcpListener::bind(config.bind_addr).await?;

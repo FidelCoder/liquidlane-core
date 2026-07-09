@@ -1,5 +1,6 @@
 mod chain;
 mod config;
+mod fund;
 mod record;
 mod scripts;
 mod vault;
@@ -11,6 +12,7 @@ pub fn run() -> Result<()> {
     let config = config::DeployConfig::load()?;
     match std::env::args().nth(1).as_deref() {
         Some("init-vault") => init_vault(&config),
+        Some("fund-address") => fund_address(&config),
         Some("deploy-scripts") | Some("deploy") | None => deploy_scripts(&config),
         Some(command) => anyhow::bail!("unknown deployer command: {command}"),
     }
@@ -38,6 +40,26 @@ fn deploy_scripts(config: &config::DeployConfig) -> Result<()> {
         );
     }
 
+    Ok(())
+}
+
+fn fund_address(config: &config::DeployConfig) -> Result<()> {
+    let recipient = std::env::args().nth(2).ok_or_else(|| {
+        anyhow::anyhow!("usage: liquidlane_deploy fund-address <recipient> <amount_ckb>")
+    })?;
+    let amount_ckb = std::env::args()
+        .nth(3)
+        .ok_or_else(|| {
+            anyhow::anyhow!("usage: liquidlane_deploy fund-address <recipient> <amount_ckb>")
+        })?
+        .parse::<u64>()?;
+
+    let receipt = fund::fund_address(config, &recipient, amount_ckb)?;
+    println!(
+        "Funded {} with {} CKB",
+        receipt.recipient, receipt.amount_ckb
+    );
+    println!("Funding tx: {}", receipt.tx_hash);
     Ok(())
 }
 

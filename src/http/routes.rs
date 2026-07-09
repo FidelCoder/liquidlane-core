@@ -19,13 +19,31 @@ pub(super) struct HealthResponse {
     status: &'static str,
     service: &'static str,
     environment: String,
+    fiber_rpc_configured: bool,
+    ckb_rpc_configured: bool,
+    ckb_network: String,
+    vault_configured: bool,
+    beta_ready: bool,
 }
 
 pub(super) async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
+    let vault = state.store.vault_config().await;
+    let is_testnet = matches!(
+        vault.network.trim().to_ascii_lowercase().as_str(),
+        "testnet" | "ckb-testnet" | "pudge" | "pudge-testnet"
+    );
+    let beta_ready =
+        is_testnet && vault.configured && state.ckb_rpc_configured && state.fiber_rpc_configured;
+
     Json(HealthResponse {
         status: "ok",
         service: "liquidlane-core",
         environment: state.environment,
+        fiber_rpc_configured: state.fiber_rpc_configured,
+        ckb_rpc_configured: state.ckb_rpc_configured,
+        ckb_network: vault.network,
+        vault_configured: vault.configured,
+        beta_ready,
     })
 }
 

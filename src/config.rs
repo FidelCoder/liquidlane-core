@@ -36,6 +36,11 @@ impl AppConfig {
             .unwrap_or_else(|_| "testnet".to_string())
             .trim()
             .to_lowercase();
+        if !is_testnet_network(&ckb_network) {
+            anyhow::bail!(
+                "LiquidLane beta is locked to CKB testnet. Set LIQUIDLANE_CKB_NETWORK=testnet"
+            );
+        }
         let ckb_accept_pending_txs = ckb_accept_pending_txs(&ckb_network)?;
         let ckb_script_build_dir = env::var("LIQUIDLANE_CKB_SCRIPT_BUILD_DIR")
             .map(PathBuf::from)
@@ -110,12 +115,12 @@ fn is_testnet_network(network: &str) -> bool {
 }
 
 fn validate_vault_address(address: String) -> anyhow::Result<String> {
-    if is_plausible_ckb_address(&address) {
+    if address.trim().starts_with("ckt1") && is_plausible_ckb_address(&address) {
         return Ok(address);
     }
 
     anyhow::bail!(
-        "LIQUIDLANE_VAULT_CKB_ADDRESS must be a real CKB address from a wallet or vault script, not a placeholder"
+        "LIQUIDLANE_VAULT_CKB_ADDRESS must be a real CKB testnet address from a wallet or vault script, not a placeholder"
     )
 }
 

@@ -22,6 +22,8 @@ pub struct AppState {
     pub environment: String,
     pub store: Arc<AppStore>,
     pub ckb_script_build_dir: PathBuf,
+    pub fiber_rpc_configured: bool,
+    pub ckb_rpc_configured: bool,
 }
 
 pub fn router(state: AppState) -> Router {

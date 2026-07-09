@@ -22,6 +22,8 @@ pub(super) fn test_app_with_script_build_dir(ckb_script_build_dir: PathBuf) -> R
     router(AppState {
         environment: "test".to_string(),
         store: Arc::new(AppStore::memory()),
+        fiber_rpc_configured: false,
+        ckb_rpc_configured: false,
         ckb_script_build_dir,
     })
 }

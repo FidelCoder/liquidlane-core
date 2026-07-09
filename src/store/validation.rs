@@ -64,10 +64,8 @@ pub(super) fn is_product_activity(event: &ActivityEvent) -> bool {
 
 pub(super) fn normalize_ckb_address(ckb_address: &str) -> Result<String> {
     let address = ckb_address.trim();
-    if address.len() < 12 || !(address.starts_with("ckb") || address.starts_with("ckt")) {
-        return Err(anyhow!(
-            "ckb_address must be a valid CKB mainnet or testnet address"
-        ));
+    if address.len() < 12 || !address.starts_with("ckt1") {
+        return Err(anyhow!("ckb_address must be a valid CKB testnet address"));
     }
     Ok(address.to_string())
 }

@@ -22,7 +22,7 @@ cargo run
 ```
 
 The API listens on `0.0.0.0:8080` by default and stores local state in `liquidlane-data.json`.
-Configure the active vault with `LIQUIDLANE_VAULT_ASSET`, `LIQUIDLANE_VAULT_CKB_ADDRESS`, and `LIQUIDLANE_CKB_NETWORK`. `LIQUIDLANE_VAULT_CKB_ADDRESS` must be a real CKB address from a wallet or vault script; Core rejects placeholder-looking values and reports the vault as unconfigured when no address is set.
+Configure the active vault with `LIQUIDLANE_VAULT_ASSET`, `LIQUIDLANE_VAULT_CKB_ADDRESS`, and `LIQUIDLANE_CKB_NETWORK`. The beta runtime is locked to CKB testnet, and `LIQUIDLANE_VAULT_CKB_ADDRESS` must be a real `ckt1...` testnet address from the deployed vault script; Core rejects placeholder-looking values and reports the vault as unconfigured when no address is set.
 
 ## Fiber RPC
 
