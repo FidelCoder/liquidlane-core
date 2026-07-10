@@ -28,6 +28,15 @@ pub struct CreateLiquidityRequest {
     pub signed_tx: Option<Value>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+pub struct AttachFiberPeerRequest {
+    pub fiber_peer_pubkey: String,
+    #[serde(default)]
+    pub fiber_peer_address: Option<String>,
+    #[serde(default)]
+    pub public_channel: Option<bool>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct LiquidityQuote {
     pub asset: String,

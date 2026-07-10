@@ -61,6 +61,10 @@ pub fn router(state: AppState) -> Router {
             post(routes::create_liquidity_request),
         )
         .route(
+            "/liquidity/requests/{id}/peer",
+            post(routes::attach_fiber_peer),
+        )
+        .route(
             "/liquidity/requests/{id}/deploy",
             post(routes::deploy_liquidity),
         )

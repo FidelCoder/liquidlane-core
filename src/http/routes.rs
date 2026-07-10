@@ -9,9 +9,10 @@ use uuid::Uuid;
 
 use super::{ApiError, AppState, AuthedUser};
 use crate::domain::{
-    ChallengeRequest, ConnectWalletRequest, CreateDepositRequest, CreateFeeClaimRequest,
-    CreateLiquidityRequest, CreateSupplyIntentRequest, CreateWithdrawalIntentRequest,
-    SettleFeeClaimRequest, SettleWithdrawalRequest, VaultConfig, VerifyWalletRequest,
+    AttachFiberPeerRequest, ChallengeRequest, ConnectWalletRequest, CreateDepositRequest,
+    CreateFeeClaimRequest, CreateLiquidityRequest, CreateSupplyIntentRequest,
+    CreateWithdrawalIntentRequest, SettleFeeClaimRequest, SettleWithdrawalRequest, VaultConfig,
+    VerifyWalletRequest,
 };
 
 #[derive(Serialize)]
@@ -199,6 +200,17 @@ pub(super) async fn create_liquidity_request(
     Ok((
         StatusCode::CREATED,
         Json(state.store.create_liquidity_request(&user, request).await?),
+    ))
+}
+
+pub(super) async fn attach_fiber_peer(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+    Path(id): Path<Uuid>,
+    Json(request): Json<AttachFiberPeerRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(
+        state.store.attach_fiber_peer(&user, id, request).await?,
     ))
 }
 
