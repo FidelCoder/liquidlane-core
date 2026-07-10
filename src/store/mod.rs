@@ -11,6 +11,7 @@ mod dashboard;
 mod liquidity;
 mod liquidity_deploy;
 mod receipt_discovery;
+mod request_discovery;
 mod request_intent;
 mod settlement;
 mod validation;

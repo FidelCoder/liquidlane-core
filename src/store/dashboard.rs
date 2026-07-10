@@ -24,6 +24,9 @@ impl AppStore {
         if let Err(error) = self.sync_live_vault_accounting(&vault, &asset).await {
             tracing::warn!(error = %error, "failed to sync live vault accounting from CKB");
         }
+        if let Err(error) = self.sync_visible_request_cells(user, &vault).await {
+            tracing::warn!(error = %error, "failed to sync live capacity request cells from CKB");
+        }
         let state = self.inner.read().await;
         Dashboard {
             user: UserProfile::from(user),
