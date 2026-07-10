@@ -26,11 +26,15 @@ impl AppStore {
         validate_liquidity_request(request)?;
 
         let asset = normalize_asset(&request.asset);
+        let vault = self.vault_config().await;
+        if let Err(error) = self.sync_live_vault_accounting(&vault, &asset).await {
+            tracing::warn!(error = %error, "failed to sync live vault accounting for quote");
+        }
         let available_liquidity = self
             .inner
             .read()
             .await
-            .vault_summary(&self.vault, asset.clone())
+            .vault_summary(&vault, asset.clone())
             .available_liquidity;
 
         Ok(LiquidityQuote {
@@ -123,8 +127,9 @@ impl AppStore {
         }
 
         let mut state = self.inner.write().await;
+        let vault = state.vault_config(&self.vault);
         if state
-            .vault_summary(&self.vault, liquidity_request.asset.clone())
+            .vault_summary(&vault, liquidity_request.asset.clone())
             .available_liquidity
             < liquidity_request.amount
         {

@@ -15,6 +15,7 @@ mod request_intent;
 mod settlement;
 mod validation;
 mod vault;
+mod vault_chain_sync;
 mod vault_discovery;
 
 use std::path::PathBuf;
@@ -24,6 +25,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 #[cfg(test)]
 use uuid::Uuid;
+use vault_chain_sync::LiveVaultAccounting;
 
 use crate::{
     ckb_rpc::{CkbRpcClient, explicit_transaction_hash},
@@ -66,6 +68,8 @@ struct StoreState {
     vault_address: Option<String>,
     #[serde(default)]
     vault_cell_out_point: Option<String>,
+    #[serde(default)]
+    live_vault_accounting: Option<LiveVaultAccounting>,
 }
 
 impl AppStore {

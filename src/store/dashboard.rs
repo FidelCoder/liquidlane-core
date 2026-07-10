@@ -21,6 +21,9 @@ impl AppStore {
         if let Err(error) = self.sync_user_lp_receipts(user, &asset, &vault).await {
             tracing::warn!(error = %error, "failed to sync LP receipt cells from CKB");
         }
+        if let Err(error) = self.sync_live_vault_accounting(&vault, &asset).await {
+            tracing::warn!(error = %error, "failed to sync live vault accounting from CKB");
+        }
         let state = self.inner.read().await;
         Dashboard {
             user: UserProfile::from(user),
@@ -41,30 +44,39 @@ impl StoreState {
         let active = |position: &&LpPosition| {
             position.asset == asset && position.status == PositionStatus::Active
         };
-        let total_deposits = self
+        let live = self.live_vault_accounting(&asset);
+        let state_total_deposits = self
             .lp_positions
             .iter()
             .filter(active)
             .map(|position| position.supplied_amount)
             .sum::<u64>();
-        let available_liquidity = self
-            .lp_positions
-            .iter()
-            .filter(active)
-            .map(|position| position.available_amount)
-            .sum::<u64>();
-        let reserved_liquidity = self
-            .lp_positions
-            .iter()
-            .filter(active)
-            .map(|position| position.reserved_amount)
-            .sum::<u64>();
-        let deployed_liquidity = self
-            .lp_positions
-            .iter()
-            .filter(active)
-            .map(|position| position.deployed_amount)
-            .sum::<u64>();
+        let total_deposits = live
+            .map(|live| live.total_deposits)
+            .unwrap_or(state_total_deposits);
+        let available_liquidity = live
+            .map(|live| live.available_liquidity)
+            .unwrap_or_else(|| {
+                self.lp_positions
+                    .iter()
+                    .filter(active)
+                    .map(|position| position.available_amount)
+                    .sum::<u64>()
+            });
+        let reserved_liquidity = live.map(|live| live.reserved_liquidity).unwrap_or_else(|| {
+            self.lp_positions
+                .iter()
+                .filter(active)
+                .map(|position| position.reserved_amount)
+                .sum::<u64>()
+        });
+        let deployed_liquidity = live.map(|live| live.deployed_liquidity).unwrap_or_else(|| {
+            self.lp_positions
+                .iter()
+                .filter(active)
+                .map(|position| position.deployed_amount)
+                .sum::<u64>()
+        });
         let fees_earned = self
             .lp_positions
             .iter()
