@@ -3,6 +3,7 @@ mod auth;
 mod chain_address;
 mod chain_deposit;
 mod chain_fee_claim;
+mod chain_fee_guard;
 mod chain_request;
 mod chain_settlement;
 mod chain_types;

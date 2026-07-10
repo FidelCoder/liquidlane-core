@@ -3,6 +3,7 @@ use serde_json::Value;
 
 use super::{
     AppStore,
+    chain_fee_guard::require_reasonable_fee,
     chain_types::{
         ChainOutput, ChainScript, array, hex_index, output_at, outputs, parse_receipt_data,
         parse_vault_data, required_hash, script_from_address, string_field, type_code_matches,
@@ -27,6 +28,7 @@ impl AppStore {
             return Ok(());
         };
         let transaction = client.transaction_details(tx_hash).await?.transaction;
+        require_reasonable_fee(client, &transaction, "withdrawal").await?;
         let vault = self.vault_config().await;
         let user_lock = script_from_address(&user.ckb_address)?;
         let vault_lock = vault_lock_script(&vault)?;
