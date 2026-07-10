@@ -13,6 +13,7 @@ mod liquidity_deploy;
 mod receipt_discovery;
 mod request_discovery;
 mod request_intent;
+mod request_recovery;
 mod settlement;
 mod validation;
 mod vault;

@@ -1,21 +1,19 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{Result, anyhow};
 use chrono::Utc;
 use uuid::Uuid;
 
 use super::{
-    AppStore, StoreState,
-    accounting::request_cell_id,
-    chain_address::script_from_json,
-    chain_types::{parse_request_data, required_hash, script_from_address, script_hash},
+    AppStore,
+    chain_address::{address_from_script, script_from_json},
+    chain_types::{ChainScript, parse_request_data, required_hash, script_hash},
+    request_recovery::{RecoveredActor, RecoveredRequest},
 };
-use crate::domain::{
-    ActivityEvent, CapacityReservation, LiquidityRequest, LiquidityStatus, ReservationStatus, User,
-    UserRole, VaultConfig,
-};
+use crate::domain::{LiquidityStatus, User, UserRole, VaultConfig};
 
-const REQUEST_DISCOVERY_LIMIT: u32 = 50;
+const REQUEST_DISCOVERY_LIMIT: u32 = 100;
+const VAULT_DISCOVERY_LIMIT: u32 = 10;
 const ARG_SEGMENT_CHARS: usize = 64;
 
 impl AppStore {
@@ -31,50 +29,44 @@ impl AppStore {
             vault.scripts.request_type_code_hash.as_deref(),
             "LIQUIDLANE_REQUEST_TYPE_CODE_HASH",
         )?;
-        let targets = self.request_discovery_targets(user).await;
-        if targets.is_empty() {
-            return Ok(());
-        }
+        let vault_type_hashes = self.live_vault_type_hashes(vault).await?;
+        let known_users = self.request_discovery_targets(user).await;
+        let cells = client
+            .live_cells_by_type_code(&request_type_code, REQUEST_DISCOVERY_LIMIT)
+            .await?;
 
         let mut recovered = Vec::new();
-        for target in targets {
-            let lock = script_from_address(&target.ckb_address)?;
-            let lock_hash = script_hash(&lock)?;
-            let cells = client
-                .live_cells_by_lock_and_type_code(
-                    &lock.code_hash,
-                    &lock.hash_type,
-                    &lock.args,
-                    &request_type_code,
-                    REQUEST_DISCOVERY_LIMIT,
-                )
-                .await?;
-            for cell in cells {
-                let type_script = cell
-                    .output
-                    .get("type")
-                    .filter(|value| !value.is_null())
-                    .ok_or_else(|| anyhow!("capacity request cell type script is missing"))?;
-                let type_script = script_from_json(type_script)?;
-                if !request_type_belongs_to_lock(&type_script.args, &lock_hash) {
-                    continue;
-                }
-                let Some(id) = request_id_from_type_args(&type_script.args) else {
-                    continue;
-                };
-                let data = hex_bytes(&cell.output_data)?;
-                let request = parse_request_data(&data)?;
-                recovered.push(RecoveredRequest {
-                    id,
-                    user: target.clone(),
-                    amount: request.amount,
-                    lease_fee: request.lease_fee,
-                    duration_days: duration_days_from_expiry(request.expiry),
-                    request_cell_out_point: cell.out_point.cell_out_point(),
-                    request_tx_hash: cell.out_point.tx_hash,
-                    status: status_from_chain(request.status),
-                });
+        for cell in cells {
+            let type_script = script_value(&cell.output, "type")?;
+            if !request_type_belongs_to_vault(&type_script.args, &vault_type_hashes) {
+                continue;
             }
+            let lock = script_value(&cell.output, "lock")?;
+            let lock_hash = script_hash(&lock)?;
+            if !arg_segment_matches(&type_script.args, 1, &lock_hash) {
+                continue;
+            }
+            if arg_segment(&type_script.args, 2)?
+                .chars()
+                .all(|ch| ch == '0')
+            {
+                continue;
+            }
+            let Some(id) = request_id_from_type_args(&type_script.args) else {
+                continue;
+            };
+            let data = hex_bytes(&cell.output_data)?;
+            let request = parse_request_data(&data)?;
+            recovered.push(RecoveredRequest {
+                id,
+                actor: recovered_actor(id, &lock, vault, &known_users)?,
+                amount: request.amount,
+                lease_fee: request.lease_fee,
+                duration_days: duration_days_from_expiry(request.expiry),
+                request_cell_out_point: cell.out_point.cell_out_point(),
+                request_tx_hash: cell.out_point.tx_hash,
+                status: status_from_chain(request.status),
+            });
         }
 
         if recovered.is_empty() {
@@ -82,13 +74,36 @@ impl AppStore {
         }
         let mut state = self.inner.write().await;
         let mut changed = false;
-        for request in recovered {
+        for request in dedupe_recovered(recovered) {
             changed |= state.upsert_recovered_request(vault, request);
         }
         if changed {
             self.persist_locked(&state).await?;
         }
         Ok(())
+    }
+
+    async fn live_vault_type_hashes(&self, vault: &VaultConfig) -> Result<Vec<String>> {
+        let Some(client) = self.ckb_rpc.as_ref() else {
+            return Ok(Vec::new());
+        };
+        let vault_lock_code = required_hash(
+            vault.scripts.vault_lock_code_hash.as_deref(),
+            "LIQUIDLANE_VAULT_LOCK_CODE_HASH",
+        )?;
+        let vault_type_code = required_hash(
+            vault.scripts.vault_type_code_hash.as_deref(),
+            "LIQUIDLANE_VAULT_TYPE_CODE_HASH",
+        )?;
+        let cells = client
+            .live_vault_cells_by_code(&vault_type_code, &vault_lock_code, VAULT_DISCOVERY_LIMIT)
+            .await?;
+        let mut hashes = HashSet::new();
+        for cell in cells {
+            let type_script = script_value(&cell.output, "type")?;
+            hashes.insert(script_hash(&type_script)?);
+        }
+        Ok(hashes.into_iter().collect())
     }
 
     async fn request_discovery_targets(&self, user: &User) -> Vec<User> {
@@ -113,122 +128,55 @@ impl AppStore {
     }
 }
 
-struct RecoveredRequest {
+fn recovered_actor(
     id: Uuid,
-    user: User,
-    amount: u64,
-    lease_fee: u64,
-    duration_days: u16,
-    request_cell_out_point: String,
-    request_tx_hash: String,
-    status: LiquidityStatus,
-}
-
-impl StoreState {
-    fn upsert_recovered_request(&mut self, vault: &VaultConfig, request: RecoveredRequest) -> bool {
-        let now = Utc::now();
-        let request_cell = request_cell_id(request.id);
-        let mut changed = false;
-        if let Some(stored) = self.liquidity_requests.iter_mut().find(|stored| {
-            stored.id == request.id
-                || stored.request_cell_out_point.as_deref()
-                    == Some(request.request_cell_out_point.as_str())
-        }) {
-            if stored.request_tx_hash.as_deref() != Some(request.request_tx_hash.as_str())
-                || stored.request_cell_out_point.as_deref()
-                    != Some(request.request_cell_out_point.as_str())
-            {
-                stored.request_tx_hash = Some(request.request_tx_hash.clone());
-                stored.request_cell_out_point = Some(request.request_cell_out_point.clone());
-                stored.updated_at = now;
-                changed = true;
-            }
-        } else {
-            self.liquidity_requests.push(LiquidityRequest {
-                id: request.id,
-                merchant_id: request.user.id,
-                merchant_name: request.user.display_name.clone(),
-                ckb_address: request.user.ckb_address.clone(),
-                asset: vault.asset.clone(),
-                amount: request.amount,
-                duration_days: request.duration_days,
-                lease_fee: request.lease_fee,
-                routing_fee_bps: 30,
-                fiber_peer_pubkey: None,
-                fiber_peer_address: None,
-                public_channel: true,
-                funding_udt_type_script: None,
-                request_cell_id: request_cell.clone(),
-                request_tx_hash: Some(request.request_tx_hash.clone()),
-                request_cell_out_point: Some(request.request_cell_out_point.clone()),
-                status: request.status.clone(),
-                fiber_temporary_channel_id: None,
-                channel_id: None,
-                fiber_note: Some(
-                    "Recovered from live CKB request cell. Reattach Fiber peer details if needed."
-                        .to_string(),
-                ),
-                fiber_error: None,
-                created_at: now,
-                updated_at: now,
-            });
-            self.events.insert(
-                0,
-                ActivityEvent {
-                    id: Uuid::new_v4(),
-                    actor_id: request.user.id,
-                    label: format!(
-                        "{} recovered receive-capacity request",
-                        request.user.display_name
-                    ),
-                    amount: Some(request.amount),
-                    asset: Some(vault.asset.clone()),
-                    created_at: now,
-                },
-            );
-            changed = true;
-        }
-
-        if self
-            .capacity_reservations
-            .iter()
-            .all(|reservation| reservation.request_id != request.id)
-        {
-            self.capacity_reservations.push(CapacityReservation {
-                id: Uuid::new_v4(),
-                request_id: request.id,
-                merchant_id: request.user.id,
-                merchant_name: request.user.display_name,
-                ckb_address: request.user.ckb_address,
-                asset: vault.asset.clone(),
-                amount: request.amount,
-                lease_fee: request.lease_fee,
-                request_cell_id: request_cell,
-                status: reservation_status(&request.status),
-                created_at: now,
-                updated_at: now,
-            });
-            changed = true;
-        }
-        changed
+    lock: &ChainScript,
+    vault: &VaultConfig,
+    known_users: &[User],
+) -> Result<RecoveredActor> {
+    let address = address_from_script(lock, &vault.network)?;
+    if let Some(user) = known_users
+        .iter()
+        .find(|user| user.ckb_address.eq_ignore_ascii_case(&address))
+    {
+        return Ok(RecoveredActor {
+            id: user.id,
+            display_name: user.display_name.clone(),
+            ckb_address: user.ckb_address.clone(),
+        });
     }
+    Ok(RecoveredActor {
+        id,
+        display_name: format!("Recovered {}", short_address(&address)),
+        ckb_address: address,
+    })
 }
 
-fn request_type_belongs_to_lock(args: &str, lock_hash: &str) -> bool {
-    let args = args.trim_start_matches("0x");
-    let lock_hash = lock_hash.trim_start_matches("0x");
-    args.len() == ARG_SEGMENT_CHARS * 4
-        && args
-            .get(ARG_SEGMENT_CHARS..ARG_SEGMENT_CHARS * 2)
-            .is_some_and(|segment| segment.eq_ignore_ascii_case(lock_hash))
+fn request_type_belongs_to_vault(args: &str, vault_type_hashes: &[String]) -> bool {
+    vault_type_hashes.is_empty()
+        || vault_type_hashes
+            .iter()
+            .any(|hash| arg_segment_matches(args, 0, hash))
+}
+
+fn arg_segment_matches(args: &str, index: usize, expected: &str) -> bool {
+    arg_segment(args, index)
+        .map(|segment| segment.eq_ignore_ascii_case(expected.trim_start_matches("0x")))
+        .unwrap_or(false)
 }
 
 fn request_id_from_type_args(args: &str) -> Option<Uuid> {
+    uuid_from_compact_hex(arg_segment(args, 3).ok()?.get(0..32)?)
+}
+
+fn arg_segment(args: &str, index: usize) -> Result<&str> {
     let args = args.trim_start_matches("0x");
     if args.len() != ARG_SEGMENT_CHARS * 4 {
-        return None;
+        return Err(anyhow!("capacity request cell type args are invalid"));
     }
-    uuid_from_compact_hex(args.get(ARG_SEGMENT_CHARS * 3..ARG_SEGMENT_CHARS * 3 + 32)?)
+    let start = index * ARG_SEGMENT_CHARS;
+    args.get(start..start + ARG_SEGMENT_CHARS)
+        .ok_or_else(|| anyhow!("capacity request cell arg segment is missing"))
 }
 
 fn uuid_from_compact_hex(value: &str) -> Option<Uuid> {
@@ -260,14 +208,27 @@ fn status_from_chain(status: u8) -> LiquidityStatus {
     }
 }
 
-fn reservation_status(status: &LiquidityStatus) -> ReservationStatus {
-    match status {
-        LiquidityStatus::ChannelOpen | LiquidityStatus::PendingFiberChannel => {
-            ReservationStatus::Deployed
-        }
-        LiquidityStatus::Failed => ReservationStatus::Failed,
-        LiquidityStatus::Requested => ReservationStatus::Reserved,
+fn script_value(output: &serde_json::Value, key: &str) -> Result<ChainScript> {
+    let value = output
+        .get(key)
+        .filter(|value| !value.is_null())
+        .ok_or_else(|| anyhow!("capacity request cell {key} script is missing"))?;
+    script_from_json(value)
+}
+
+fn dedupe_recovered(requests: Vec<RecoveredRequest>) -> Vec<RecoveredRequest> {
+    let mut by_outpoint = HashMap::new();
+    for request in requests {
+        by_outpoint.insert(request.request_cell_out_point.clone(), request);
     }
+    by_outpoint.into_values().collect()
+}
+
+fn short_address(address: &str) -> String {
+    if address.len() <= 14 {
+        return address.to_string();
+    }
+    format!("{}...{}", &address[..8], &address[address.len() - 6..])
 }
 
 fn hex_bytes(value: &str) -> Result<Vec<u8>> {

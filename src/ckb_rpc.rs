@@ -84,52 +84,35 @@ impl CkbRpcClient {
         vault_lock_code_hash: &str,
         limit: u32,
     ) -> Result<Vec<CkbLiveCell>> {
-        let response = self
-            .client
-            .post(&self.url)
-            .json(&json!({
-                "id": 1,
-                "jsonrpc": "2.0",
-                "method": "get_cells",
-                "params": [
-                    {
-                        "script": {
-                            "code_hash": vault_type_code_hash,
-                            "hash_type": "data1",
-                            "args": "0x"
-                        },
-                        "script_type": "type",
-                        "script_search_mode": "prefix",
-                        "filter": {
-                            "script": {
-                                "code_hash": vault_lock_code_hash,
-                                "hash_type": "data1",
-                                "args": "0x"
-                            },
-                            "script_search_mode": "prefix"
-                        }
-                    },
-                    "asc",
-                    format!("0x{limit:x}")
-                ]
-            }))
-            .send()
-            .await?
-            .error_for_status()?
-            .json::<RpcResponse<GetCellsResult>>()
-            .await?;
+        self.get_cells(
+            json!({
+                "script": code_script(vault_type_code_hash, "data1", "0x"),
+                "script_type": "type",
+                "script_search_mode": "prefix",
+                "filter": {
+                    "script": code_script(vault_lock_code_hash, "data1", "0x"),
+                    "script_search_mode": "prefix"
+                }
+            }),
+            limit,
+        )
+        .await
+    }
 
-        if let Some(error) = response.error {
-            return Err(anyhow!(
-                "CKB RPC get_cells failed: {} ({})",
-                error.message,
-                error.code
-            ));
-        }
-        Ok(response
-            .result
-            .map(|result| result.objects)
-            .unwrap_or_default())
+    pub async fn live_cells_by_type_code(
+        &self,
+        type_code_hash: &str,
+        limit: u32,
+    ) -> Result<Vec<CkbLiveCell>> {
+        self.get_cells(
+            json!({
+                "script": code_script(type_code_hash, "data1", "0x"),
+                "script_type": "type",
+                "script_search_mode": "prefix"
+            }),
+            limit,
+        )
+        .await
     }
 
     pub async fn live_cells_by_lock_and_type_code(
@@ -140,6 +123,21 @@ impl CkbRpcClient {
         type_code_hash: &str,
         limit: u32,
     ) -> Result<Vec<CkbLiveCell>> {
+        self.get_cells(
+            json!({
+                "script": code_script(lock_code_hash, lock_hash_type, lock_args),
+                "script_type": "lock",
+                "filter": {
+                    "script": code_script(type_code_hash, "data1", "0x"),
+                    "script_search_mode": "prefix"
+                }
+            }),
+            limit,
+        )
+        .await
+    }
+
+    async fn get_cells(&self, search_key: Value, limit: u32) -> Result<Vec<CkbLiveCell>> {
         let response = self
             .client
             .post(&self.url)
@@ -147,26 +145,7 @@ impl CkbRpcClient {
                 "id": 1,
                 "jsonrpc": "2.0",
                 "method": "get_cells",
-                "params": [
-                    {
-                        "script": {
-                            "code_hash": lock_code_hash,
-                            "hash_type": lock_hash_type,
-                            "args": lock_args
-                        },
-                        "script_type": "lock",
-                        "filter": {
-                            "script": {
-                                "code_hash": type_code_hash,
-                                "hash_type": "data1",
-                                "args": "0x"
-                            },
-                            "script_search_mode": "prefix"
-                        }
-                    },
-                    "asc",
-                    format!("0x{limit:x}")
-                ]
+                "params": [search_key, "asc", format!("0x{limit:x}")]
             }))
             .send()
             .await?
@@ -290,4 +269,12 @@ pub fn explicit_transaction_hash(value: &Value) -> Option<&str> {
         .and_then(|hash| hash.as_str())
         .map(str::trim)
         .filter(|hash| !hash.is_empty())
+}
+
+fn code_script(code_hash: &str, hash_type: &str, args: &str) -> Value {
+    json!({
+        "code_hash": code_hash,
+        "hash_type": hash_type,
+        "args": args
+    })
 }
