@@ -90,7 +90,13 @@ impl StoreState {
             .liquidity_requests
             .iter()
             .filter(|request| {
-                request.asset == asset && request.status == LiquidityStatus::PendingFiberChannel
+                request.asset == asset
+                    && matches!(
+                        request.status,
+                        LiquidityStatus::FundingRequired
+                            | LiquidityStatus::FundingSubmitted
+                            | LiquidityStatus::PendingFiberChannel
+                    )
             })
             .map(|request| request.amount)
             .sum::<u64>();

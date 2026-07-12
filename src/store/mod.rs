@@ -10,10 +10,12 @@ mod chain_types;
 mod dashboard;
 mod executor;
 mod executor_channel;
+mod funding_intent;
 mod liquidity;
 mod liquidity_deploy;
 #[cfg(test)]
 mod liquidity_deploy_tests;
+mod liquidity_lookup;
 mod liquidity_peer;
 mod monitoring;
 mod receipt_discovery;
@@ -44,8 +46,9 @@ use crate::{
     ckb_rpc::{CkbRpcClient, explicit_transaction_hash},
     domain::{
         ActivityEvent, AuthChallenge, CapacityReservation, Deposit, ExecutorJob,
-        FUNDING_MODE_VAULT_EXTERNAL, FeeClaim, LiquidityRequest, LpPosition, RequestIntent,
-        SupplyIntent, User, VaultConfig, WithdrawalIntent, normalize_executor_funding_mode,
+        ExternalFundingIntent, FUNDING_MODE_VAULT_EXTERNAL, FeeClaim, LiquidityRequest, LpPosition,
+        RequestIntent, SupplyIntent, User, VaultConfig, WithdrawalIntent,
+        normalize_executor_funding_mode,
     },
     fiber::FiberClient,
 };
@@ -83,6 +86,8 @@ struct StoreState {
     liquidity_requests: Vec<LiquidityRequest>,
     #[serde(default)]
     executor_jobs: Vec<ExecutorJob>,
+    #[serde(default)]
+    external_funding_intents: Vec<ExternalFundingIntent>,
     events: Vec<ActivityEvent>,
     #[serde(default)]
     vault_address: Option<String>,

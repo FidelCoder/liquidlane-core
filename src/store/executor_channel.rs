@@ -23,7 +23,10 @@ impl AppStore {
         let mut opened = Vec::new();
         let mut failed = Vec::new();
         for request in state.liquidity_requests.iter_mut() {
-            if request.status == LiquidityStatus::PendingFiberChannel {
+            if matches!(
+                request.status,
+                LiquidityStatus::FundingSubmitted | LiquidityStatus::PendingFiberChannel
+            ) {
                 if let Some(channel) = matching_usable_channel(request, &channels) {
                     request.status = LiquidityStatus::ChannelOpen;
                     request.channel_id = channel
@@ -43,7 +46,9 @@ impl AppStore {
 
             if matches!(
                 request.status,
-                LiquidityStatus::PendingFiberChannel | LiquidityStatus::ChannelOpen
+                LiquidityStatus::FundingSubmitted
+                    | LiquidityStatus::PendingFiberChannel
+                    | LiquidityStatus::ChannelOpen
             ) && matching_failed_channel(request, &channels).is_some()
             {
                 request.status = LiquidityStatus::Failed;
@@ -51,7 +56,7 @@ impl AppStore {
                     "Fiber funding attempt was aborted before the channel became active."
                         .to_string(),
                 );
-                request.fiber_note = Some("Liquidity remains reserved. Retry the Fiber handoff after the node funding issue is fixed.".to_string());
+                request.fiber_note = Some("Liquidity remains reserved. Retry after the vault-funded Fiber transaction issue is fixed.".to_string());
                 request.updated_at = now;
                 failed.push(request.clone());
             }

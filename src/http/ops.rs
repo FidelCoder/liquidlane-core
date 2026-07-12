@@ -7,7 +7,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use super::{ApiError, AppState, AuthedUser};
-use crate::domain::{User, UserRole};
+use crate::domain::{ExternalFundingIntent, ExternalFundingReadiness, User, UserRole};
 use crate::store::{CoreStateExport, ExecutorHealth};
 
 #[derive(Serialize)]
@@ -26,6 +26,7 @@ pub(super) struct HealthResponse {
     executor_pending_handoffs: usize,
     external_funding_supported: bool,
     external_funding_ready: bool,
+    external_funding_blockers: Vec<String>,
     vault_external_required: bool,
     node_wallet_diagnostic: bool,
 }
@@ -50,6 +51,7 @@ pub(super) async fn health(State(state): State<AppState>) -> Json<HealthResponse
         executor_pending_handoffs: executor.pending_handoffs,
         external_funding_supported: executor.external_funding_supported,
         external_funding_ready: executor.external_funding_ready,
+        external_funding_blockers: executor.external_funding_blockers,
         vault_external_required: executor.vault_external_required,
         node_wallet_diagnostic: executor.node_wallet_diagnostic,
     })
@@ -88,6 +90,23 @@ pub(super) async fn executor_health(
 ) -> Result<impl IntoResponse, ApiError> {
     require_internal_operator(&user)?;
     Ok(Json(state.store.executor_health().await))
+}
+
+#[derive(Serialize)]
+pub(super) struct ExternalFundingResponse {
+    readiness: ExternalFundingReadiness,
+    intents: Vec<ExternalFundingIntent>,
+}
+
+pub(super) async fn external_funding(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+) -> Result<impl IntoResponse, ApiError> {
+    require_internal_operator(&user)?;
+    Ok(Json(ExternalFundingResponse {
+        readiness: state.store.external_funding_readiness().await,
+        intents: state.store.external_funding_intents().await,
+    }))
 }
 
 pub(super) async fn executor_jobs(

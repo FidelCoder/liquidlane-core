@@ -23,6 +23,7 @@ pub enum ExecutorJobStatus {
     Queued,
     Preparing,
     Submitted,
+    AwaitingVaultFunding,
     AwaitingFundingConfirmation,
     ChannelActive,
     RetryableFailed,
@@ -36,6 +37,7 @@ impl ExecutorJobStatus {
             Self::Queued
                 | Self::Preparing
                 | Self::Submitted
+                | Self::AwaitingVaultFunding
                 | Self::AwaitingFundingConfirmation
                 | Self::RetryableFailed
         )

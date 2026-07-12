@@ -5,8 +5,9 @@ use uuid::Uuid;
 
 use super::{AppStore, accounting::release_positions};
 use crate::domain::{
-    ActivityEvent, ExecutorJob, ExecutorJobStatus, LiquidityRequest, LiquidityStatus,
-    ReservationStatus, is_node_wallet_diagnostic_mode, is_vault_external_funding_mode,
+    ActivityEvent, ExecutorJob, ExecutorJobStatus, ExternalFundingReadiness, LiquidityRequest,
+    LiquidityStatus, ReservationStatus, is_node_wallet_diagnostic_mode,
+    is_vault_external_funding_mode,
 };
 
 #[derive(Clone, Debug, Serialize)]
@@ -22,6 +23,8 @@ pub struct ExecutorHealth {
     pub open_jobs: usize,
     pub external_funding_supported: bool,
     pub external_funding_ready: bool,
+    pub external_funding_blockers: Vec<String>,
+    pub external_funding: ExternalFundingReadiness,
     pub vault_external_required: bool,
     pub node_wallet_diagnostic: bool,
 }
@@ -46,7 +49,14 @@ impl AppStore {
         let pending_handoffs = state
             .liquidity_requests
             .iter()
-            .filter(|request| request.status == LiquidityStatus::PendingFiberChannel)
+            .filter(|request| {
+                matches!(
+                    request.status,
+                    LiquidityStatus::FundingRequired
+                        | LiquidityStatus::FundingSubmitted
+                        | LiquidityStatus::PendingFiberChannel
+                )
+            })
             .count();
         let failed_requests = state
             .liquidity_requests
@@ -56,6 +66,8 @@ impl AppStore {
 
         let vault_external_required = is_vault_external_funding_mode(&self.executor_funding_mode);
         let node_wallet_diagnostic = is_node_wallet_diagnostic_mode(&self.executor_funding_mode);
+        drop(state);
+        let external_funding = self.external_funding_readiness().await;
 
         ExecutorHealth {
             enabled: self.executor_enabled,
@@ -67,8 +79,10 @@ impl AppStore {
             pending_handoffs,
             failed_requests,
             open_jobs,
-            external_funding_supported: vault_external_required,
-            external_funding_ready: false,
+            external_funding_supported: external_funding.supported,
+            external_funding_ready: external_funding.ready,
+            external_funding_blockers: external_funding.blockers.clone(),
+            external_funding,
             vault_external_required,
             node_wallet_diagnostic,
         }
@@ -174,7 +188,9 @@ impl AppStore {
         for request in state.liquidity_requests.iter_mut() {
             if !matches!(
                 request.status,
-                LiquidityStatus::Requested | LiquidityStatus::Failed
+                LiquidityStatus::Requested
+                    | LiquidityStatus::FundingRequired
+                    | LiquidityStatus::Failed
             ) {
                 continue;
             }

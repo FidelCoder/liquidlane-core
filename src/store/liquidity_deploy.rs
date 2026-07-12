@@ -102,11 +102,23 @@ impl AppStore {
                 .mark_executor_job(id, ExecutorJobStatus::Preparing, None, None)
                 .await;
         }
-        let outcome = if is_vault_external_funding_mode(&self.executor_funding_mode) {
-            Err(anyhow!(vault_external_not_ready_message()))
-        } else {
-            self.fiber.open_channel(&request).await
-        };
+        if is_vault_external_funding_mode(&self.executor_funding_mode) {
+            let updated = self
+                .prepare_external_funding_intent(&request, actor_id, executor)
+                .await?;
+            if executor {
+                let _ = self
+                    .mark_executor_job(
+                        id,
+                        ExecutorJobStatus::AwaitingVaultFunding,
+                        updated.fiber_error.clone(),
+                        updated.fiber_temporary_channel_id.clone(),
+                    )
+                    .await;
+            }
+            return Ok(updated);
+        }
+        let outcome = self.fiber.open_channel(&request).await;
         let mut state = self.inner.write().await;
         let request = state
             .liquidity_requests
@@ -196,43 +208,6 @@ impl AppStore {
 
         Ok(updated)
     }
-
-    async fn stored_liquidity_request(&self, id: Uuid) -> Result<LiquidityRequest> {
-        let state = self.inner.read().await;
-        state
-            .liquidity_requests
-            .iter()
-            .find(|request| request.id == id)
-            .cloned()
-            .ok_or_else(|| anyhow!("liquidity request not found"))
-    }
-
-    async fn mark_executor_note(&self, id: Uuid, note: &str) -> Result<LiquidityRequest> {
-        let mut state = self.inner.write().await;
-        let request = state
-            .liquidity_requests
-            .iter_mut()
-            .find(|request| request.id == id)
-            .ok_or_else(|| anyhow!("liquidity request not found"))?;
-        request.fiber_note = Some(note.to_string());
-        request.fiber_error = None;
-        request.updated_at = Utc::now();
-        let updated = request.clone();
-        self.persist_locked(&state).await?;
-        Ok(updated)
-    }
-
-    async fn authorized_liquidity_request(
-        &self,
-        user: &User,
-        id: Uuid,
-    ) -> Result<LiquidityRequest> {
-        let request = self.stored_liquidity_request(id).await?;
-        if user.role != UserRole::Operator && request.merchant_id != user.id {
-            return Err(anyhow!("you can only open your own liquidity requests"));
-        }
-        Ok(request)
-    }
 }
 
 pub(super) fn update_reservation_and_positions(
@@ -247,7 +222,9 @@ pub(super) fn update_reservation_and_positions(
     {
         reservation.updated_at = now;
         match updated.status {
-            LiquidityStatus::PendingFiberChannel => {
+            LiquidityStatus::FundingRequired
+            | LiquidityStatus::FundingSubmitted
+            | LiquidityStatus::PendingFiberChannel => {
                 if reservation.status == ReservationStatus::Failed {
                     reservation.status = ReservationStatus::Reserved;
                 }
@@ -286,10 +263,6 @@ pub(super) fn update_reservation_and_positions(
             LiquidityStatus::Requested => {}
         }
     }
-}
-
-fn vault_external_not_ready_message() -> &'static str {
-    "Vault-funded Fiber external funding is selected. Core will not use node-wallet liquidity for merchant capacity. The v2 vault funding transaction builder is not complete/configured yet, so no Fiber funding transaction was submitted. The CKB reserve remains on-chain and repairable."
 }
 
 fn fiber_failure_note(funding_mode: &str) -> &'static str {

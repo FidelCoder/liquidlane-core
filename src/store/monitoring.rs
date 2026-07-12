@@ -16,6 +16,8 @@ pub struct CoreStateExport {
     pub liquidity_requests: usize,
     pub active_requests: usize,
     pub pending_fiber_requests: usize,
+    pub funding_required_requests: usize,
+    pub external_funding_intents: usize,
     pub open_channels: usize,
     pub failed_requests: usize,
     pub released_requests: usize,
@@ -54,14 +56,29 @@ impl AppStore {
             .filter(|request| {
                 matches!(
                     request.status,
-                    LiquidityStatus::Requested | LiquidityStatus::PendingFiberChannel
+                    LiquidityStatus::Requested
+                        | LiquidityStatus::FundingRequired
+                        | LiquidityStatus::FundingSubmitted
+                        | LiquidityStatus::PendingFiberChannel
                 )
             })
             .count();
         let pending_fiber_requests = state
             .liquidity_requests
             .iter()
-            .filter(|request| request.status == LiquidityStatus::PendingFiberChannel)
+            .filter(|request| {
+                matches!(
+                    request.status,
+                    LiquidityStatus::FundingRequired
+                        | LiquidityStatus::FundingSubmitted
+                        | LiquidityStatus::PendingFiberChannel
+                )
+            })
+            .count();
+        let funding_required_requests = state
+            .liquidity_requests
+            .iter()
+            .filter(|request| request.status == LiquidityStatus::FundingRequired)
             .count();
         let open_channels = state
             .liquidity_requests
@@ -109,6 +126,8 @@ impl AppStore {
             liquidity_requests: state.liquidity_requests.len(),
             active_requests,
             pending_fiber_requests,
+            funding_required_requests,
+            external_funding_intents: state.external_funding_intents.len(),
             open_channels,
             failed_requests,
             released_requests,

@@ -1,5 +1,6 @@
 mod address;
 mod executor;
+mod funding;
 mod liquidity;
 mod script;
 mod user;
@@ -11,6 +12,7 @@ mod vault_v2_tests;
 
 pub use address::*;
 pub use executor::*;
+pub use funding::*;
 pub use liquidity::*;
 pub use script::*;
 pub use user::*;

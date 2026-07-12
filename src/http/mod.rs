@@ -36,6 +36,10 @@ pub fn router(state: AppState) -> Router {
         .route("/internal/executor/health", get(ops::executor_health))
         .route("/internal/executor/jobs", get(ops::executor_jobs))
         .route(
+            "/internal/executor/external-funding",
+            get(ops::external_funding),
+        )
+        .route(
             "/internal/executor/jobs/{id}/retry",
             post(ops::retry_executor_job),
         )

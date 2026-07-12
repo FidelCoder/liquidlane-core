@@ -118,6 +118,8 @@ pub struct LiquidityRequest {
 #[serde(rename_all = "snake_case")]
 pub enum LiquidityStatus {
     Requested,
+    FundingRequired,
+    FundingSubmitted,
     PendingFiberChannel,
     #[serde(alias = "deployed")]
     ChannelOpen,

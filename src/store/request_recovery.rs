@@ -169,7 +169,9 @@ fn merge_recovered_status(local: &LiquidityStatus, recovered: &LiquidityStatus) 
     if matches!(recovered, LiquidityStatus::Requested)
         && matches!(
             local,
-            LiquidityStatus::PendingFiberChannel
+            LiquidityStatus::FundingRequired
+                | LiquidityStatus::FundingSubmitted
+                | LiquidityStatus::PendingFiberChannel
                 | LiquidityStatus::ChannelOpen
                 | LiquidityStatus::Failed
                 | LiquidityStatus::Expired
@@ -184,9 +186,10 @@ fn merge_recovered_status(local: &LiquidityStatus, recovered: &LiquidityStatus) 
 fn reservation_status(status: &LiquidityStatus) -> ReservationStatus {
     match status {
         LiquidityStatus::ChannelOpen => ReservationStatus::Deployed,
-        LiquidityStatus::Requested | LiquidityStatus::PendingFiberChannel => {
-            ReservationStatus::Reserved
-        }
+        LiquidityStatus::Requested
+        | LiquidityStatus::FundingRequired
+        | LiquidityStatus::FundingSubmitted
+        | LiquidityStatus::PendingFiberChannel => ReservationStatus::Reserved,
         LiquidityStatus::Failed => ReservationStatus::Reserved,
         LiquidityStatus::Expired | LiquidityStatus::Released => ReservationStatus::Released,
     }
