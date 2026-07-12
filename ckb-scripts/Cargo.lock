@@ -112,6 +112,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "liquidlane-v2-policy"
+version = "0.1.0"
+
+[[package]]
 name = "liquidlane-vault-lock"
 version = "0.1.0"
 dependencies = [

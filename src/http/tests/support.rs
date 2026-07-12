@@ -24,6 +24,7 @@ pub(super) fn test_app_with_script_build_dir(ckb_script_build_dir: PathBuf) -> R
         store: Arc::new(AppStore::memory()),
         fiber_rpc_configured: false,
         ckb_rpc_configured: false,
+        cors_allowed_origin: None,
         ckb_script_build_dir,
     })
 }

@@ -14,17 +14,23 @@ mod liquidity_deploy;
 #[cfg(test)]
 mod liquidity_deploy_tests;
 mod liquidity_peer;
+mod monitoring;
 mod receipt_discovery;
 mod request_discovery;
 mod request_intent;
 mod request_recovery;
 mod settlement;
+mod tx_v2;
 mod validation;
 mod vault;
 mod vault_chain_sync;
 mod vault_discovery;
+mod vault_v2_codec;
 
 use std::path::PathBuf;
+
+pub use executor::ExecutorHealth;
+pub use monitoring::CoreStateExport;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -36,8 +42,9 @@ use vault_chain_sync::LiveVaultAccounting;
 use crate::{
     ckb_rpc::{CkbRpcClient, explicit_transaction_hash},
     domain::{
-        ActivityEvent, AuthChallenge, CapacityReservation, Deposit, FeeClaim, LiquidityRequest,
-        LpPosition, RequestIntent, SupplyIntent, User, VaultConfig, WithdrawalIntent,
+        ActivityEvent, AuthChallenge, CapacityReservation, Deposit, ExecutorJob, FeeClaim,
+        LiquidityRequest, LpPosition, RequestIntent, SupplyIntent, User, VaultConfig,
+        WithdrawalIntent,
     },
     fiber::FiberClient,
 };
@@ -73,6 +80,8 @@ struct StoreState {
     #[serde(default)]
     request_intents: Vec<RequestIntent>,
     liquidity_requests: Vec<LiquidityRequest>,
+    #[serde(default)]
+    executor_jobs: Vec<ExecutorJob>,
     events: Vec<ActivityEvent>,
     #[serde(default)]
     vault_address: Option<String>,

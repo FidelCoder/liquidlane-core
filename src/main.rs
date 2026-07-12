@@ -6,7 +6,7 @@ mod fiber;
 mod http;
 mod store;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use tokio::net::TcpListener;
 use tracing_subscriber::{EnvFilter, fmt};
@@ -33,24 +33,30 @@ async fn main() -> anyhow::Result<()> {
         .ckb_rpc_url
         .clone()
         .map(|url| CkbRpcClient::new(url, config.ckb_accept_pending_txs));
-    let store = AppStore::load(
-        config.data_path.clone(),
-        fiber.clone(),
-        config.vault.clone(),
-        ckb_rpc,
-        config.require_ckb_rpc,
-        config.executor_enabled,
-        config.executor_poll_interval_ms,
-        config.executor_max_retries,
-        config.executor_funding_mode.clone(),
-    )
-    .await?;
+    let store = Arc::new(
+        AppStore::load(
+            config.data_path.clone(),
+            fiber.clone(),
+            config.vault.clone(),
+            ckb_rpc,
+            config.require_ckb_rpc,
+            config.executor_enabled,
+            config.executor_poll_interval_ms,
+            config.executor_max_retries,
+            config.executor_funding_mode.clone(),
+        )
+        .await?,
+    );
+    if config.executor_enabled {
+        spawn_executor_worker(store.clone(), config.executor_poll_interval_ms);
+    }
     let app = router(AppState {
         environment: config.environment.clone(),
         ckb_script_build_dir: config.ckb_script_build_dir.clone(),
         fiber_rpc_configured: fiber.is_configured(),
         ckb_rpc_configured: config.ckb_rpc_url.is_some(),
-        store: Arc::new(store),
+        cors_allowed_origin: config.cors_allowed_origin.clone(),
+        store: store.clone(),
     });
     let listener = TcpListener::bind(config.bind_addr).await?;
 
@@ -66,6 +72,7 @@ async fn main() -> anyhow::Result<()> {
         vault_asset = %config.vault.asset,
         vault_network = %config.vault.network,
         ckb_script_build_dir = %config.ckb_script_build_dir.display(),
+        cors_allowed_origin = ?config.cors_allowed_origin,
         "starting LiquidLane Core"
     );
 
@@ -74,6 +81,24 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     Ok(())
+}
+
+fn spawn_executor_worker(store: Arc<AppStore>, poll_interval_ms: u64) {
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(Duration::from_millis(poll_interval_ms.max(1_000)));
+        loop {
+            ticker.tick().await;
+            match store.release_expired_requests().await {
+                Ok(released) if released > 0 => {
+                    tracing::info!(released, "released expired LiquidLane reservations");
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    tracing::warn!(error = %error, "failed to release expired reservations");
+                }
+            }
+        }
+    });
 }
 
 fn init_tracing() {

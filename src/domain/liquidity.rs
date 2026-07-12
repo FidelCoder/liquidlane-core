@@ -122,6 +122,8 @@ pub enum LiquidityStatus {
     #[serde(alias = "deployed")]
     ChannelOpen,
     Failed,
+    Expired,
+    Released,
 }
 
 fn default_public_channel() -> bool {

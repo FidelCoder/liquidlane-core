@@ -1,5 +1,6 @@
 mod auth;
 mod error;
+mod ops;
 mod routes;
 #[cfg(test)]
 mod tests;
@@ -8,6 +9,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use axum::{
     Router,
+    http::{HeaderValue, Method, header},
     routing::{get, post},
 };
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
@@ -24,12 +26,24 @@ pub struct AppState {
     pub ckb_script_build_dir: PathBuf,
     pub fiber_rpc_configured: bool,
     pub ckb_rpc_configured: bool,
+    pub cors_allowed_origin: Option<String>,
 }
 
 pub fn router(state: AppState) -> Router {
     Router::new()
-        .route("/health", get(routes::health))
-        .route("/internal/executor/health", get(routes::executor_health))
+        .route("/health", get(ops::health))
+        .route("/monitoring", get(ops::monitoring))
+        .route("/internal/executor/health", get(ops::executor_health))
+        .route("/internal/executor/jobs", get(ops::executor_jobs))
+        .route(
+            "/internal/executor/jobs/{id}/retry",
+            post(ops::retry_executor_job),
+        )
+        .route(
+            "/internal/executor/release-expired",
+            post(ops::release_expired_requests),
+        )
+        .route("/internal/state/export", get(ops::state_export))
         .route("/auth/challenge", post(routes::create_challenge))
         .route("/auth/connect", post(routes::connect_wallet))
         .route("/auth/verify", post(routes::verify_wallet))
@@ -69,7 +83,21 @@ pub fn router(state: AppState) -> Router {
             "/liquidity/requests/{id}/deploy",
             post(routes::deploy_liquidity),
         )
-        .with_state(state)
-        .layer(CorsLayer::permissive())
+        .with_state(state.clone())
+        .layer(cors_layer(state.cors_allowed_origin.as_deref()))
         .layer(TraceLayer::new_for_http())
+}
+
+fn cors_layer(allowed_origin: Option<&str>) -> CorsLayer {
+    let Some(origin) = allowed_origin else {
+        return CorsLayer::permissive();
+    };
+    let Ok(origin) = HeaderValue::from_str(origin) else {
+        return CorsLayer::permissive();
+    };
+
+    CorsLayer::new()
+        .allow_origin(origin)
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
 }

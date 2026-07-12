@@ -204,6 +204,9 @@ fn status_from_chain(status: u8) -> LiquidityStatus {
     match status {
         2 => LiquidityStatus::PendingFiberChannel,
         3 => LiquidityStatus::ChannelOpen,
+        4 => LiquidityStatus::Failed,
+        5 => LiquidityStatus::Expired,
+        6 => LiquidityStatus::Released,
         _ => LiquidityStatus::Requested,
     }
 }

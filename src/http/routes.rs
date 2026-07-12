@@ -4,70 +4,16 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use uuid::Uuid;
 
 use super::{ApiError, AppState, AuthedUser};
 use crate::domain::{
     AttachFiberPeerRequest, ChallengeRequest, ConnectWalletRequest, CreateDepositRequest,
     CreateFeeClaimRequest, CreateLiquidityRequest, CreateSupplyIntentRequest,
-    CreateWithdrawalIntentRequest, SettleFeeClaimRequest, SettleWithdrawalRequest, UserRole,
-    VaultConfig, VerifyWalletRequest,
+    CreateWithdrawalIntentRequest, SettleFeeClaimRequest, SettleWithdrawalRequest, VaultConfig,
+    VerifyWalletRequest,
 };
-
-#[derive(Serialize)]
-pub(super) struct HealthResponse {
-    status: &'static str,
-    service: &'static str,
-    environment: String,
-    fiber_rpc_configured: bool,
-    ckb_rpc_configured: bool,
-    ckb_network: String,
-    vault_configured: bool,
-    beta_ready: bool,
-    executor_enabled: bool,
-    executor_funding_mode: String,
-    executor_queued_requests: usize,
-    executor_pending_handoffs: usize,
-}
-
-pub(super) async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
-    let vault = state.store.vault_config().await;
-    let is_testnet = matches!(
-        vault.network.trim().to_ascii_lowercase().as_str(),
-        "testnet" | "ckb-testnet" | "pudge" | "pudge-testnet"
-    );
-    let beta_ready =
-        is_testnet && vault.configured && state.ckb_rpc_configured && state.fiber_rpc_configured;
-    let executor = state.store.executor_health().await;
-
-    Json(HealthResponse {
-        status: "ok",
-        service: "liquidlane-core",
-        environment: state.environment,
-        fiber_rpc_configured: state.fiber_rpc_configured,
-        ckb_rpc_configured: state.ckb_rpc_configured,
-        ckb_network: vault.network,
-        vault_configured: vault.configured,
-        beta_ready,
-        executor_enabled: executor.enabled,
-        executor_funding_mode: executor.funding_mode,
-        executor_queued_requests: executor.queued_requests,
-        executor_pending_handoffs: executor.pending_handoffs,
-    })
-}
-
-pub(super) async fn executor_health(
-    State(state): State<AppState>,
-    AuthedUser(user): AuthedUser,
-) -> Result<impl IntoResponse, ApiError> {
-    if user.role != UserRole::Operator {
-        return Err(ApiError::unauthorized(
-            "executor health is internal to LiquidLane operations",
-        ));
-    }
-    Ok(Json(state.store.executor_health().await))
-}
 
 pub(super) async fn create_challenge(
     State(state): State<AppState>,

@@ -17,6 +17,7 @@ pub struct AppConfig {
     pub executor_max_retries: u8,
     pub executor_funding_mode: String,
     pub ckb_script_build_dir: PathBuf,
+    pub cors_allowed_origin: Option<String>,
     pub vault: VaultConfig,
 }
 
@@ -63,6 +64,7 @@ impl AppConfig {
         let executor_max_retries = u8_env("LIQUIDLANE_EXECUTOR_MAX_RETRIES", 3)?;
         let executor_funding_mode = optional_env("LIQUIDLANE_EXECUTOR_FUNDING_MODE")
             .unwrap_or_else(|| "managed_node_beta".to_string());
+        let cors_allowed_origin = optional_env("LIQUIDLANE_CORS_ALLOWED_ORIGIN");
         let vault = VaultConfig {
             asset: env::var("LIQUIDLANE_VAULT_ASSET")
                 .unwrap_or_else(|_| "CKB".to_string())
@@ -100,6 +102,7 @@ impl AppConfig {
             executor_max_retries,
             executor_funding_mode,
             ckb_script_build_dir,
+            cors_allowed_origin,
             vault,
         })
     }
