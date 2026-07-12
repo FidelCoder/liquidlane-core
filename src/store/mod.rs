@@ -8,8 +8,11 @@ mod chain_request;
 mod chain_settlement;
 mod chain_types;
 mod dashboard;
+mod executor;
 mod liquidity;
 mod liquidity_deploy;
+#[cfg(test)]
+mod liquidity_deploy_tests;
 mod liquidity_peer;
 mod receipt_discovery;
 mod request_discovery;
@@ -45,6 +48,10 @@ pub struct AppStore {
     vault: VaultConfig,
     ckb_rpc: Option<CkbRpcClient>,
     require_ckb_rpc: bool,
+    executor_enabled: bool,
+    executor_poll_interval_ms: u64,
+    executor_max_retries: u8,
+    executor_funding_mode: String,
     inner: RwLock<StoreState>,
 }
 
@@ -82,6 +89,10 @@ impl AppStore {
         vault: VaultConfig,
         ckb_rpc: Option<CkbRpcClient>,
         require_ckb_rpc: bool,
+        executor_enabled: bool,
+        executor_poll_interval_ms: u64,
+        executor_max_retries: u8,
+        executor_funding_mode: String,
     ) -> Result<Self> {
         let state = match tokio::fs::read_to_string(&path).await {
             Ok(contents) => serde_json::from_str(&contents)?,
@@ -95,6 +106,10 @@ impl AppStore {
             vault,
             ckb_rpc,
             require_ckb_rpc,
+            executor_enabled,
+            executor_poll_interval_ms,
+            executor_max_retries,
+            executor_funding_mode,
             inner: RwLock::new(state),
         })
     }
@@ -106,6 +121,10 @@ impl AppStore {
             fiber: FiberClient::disabled(),
             ckb_rpc: None,
             require_ckb_rpc: false,
+            executor_enabled: false,
+            executor_poll_interval_ms: 5_000,
+            executor_max_retries: 3,
+            executor_funding_mode: "managed_node_beta".to_string(),
             vault: VaultConfig {
                 asset: "CKB".to_string(),
                 address: Some("ckt1qpkp7qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq".to_string()),

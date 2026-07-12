@@ -29,6 +29,7 @@ pub struct AppState {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(routes::health))
+        .route("/internal/executor/health", get(routes::executor_health))
         .route("/auth/challenge", post(routes::create_challenge))
         .route("/auth/connect", post(routes::connect_wallet))
         .route("/auth/verify", post(routes::verify_wallet))

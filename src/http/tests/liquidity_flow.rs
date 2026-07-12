@@ -55,8 +55,8 @@ async fn lp_deposit_then_merchant_request_and_queue_fiber_channel() {
     let dashboard = fetch_dashboard(app.clone(), &lp_token).await;
     assert_eq!(dashboard["vault"]["reserved_liquidity"], 3000);
     assert_eq!(dashboard["vault"]["deployed_liquidity"], 0);
-    assert_eq!(dashboard["vault"]["fees_earned"], 0);
-    assert_eq!(dashboard["positions"][0]["fees_earned"], 0);
+    assert_eq!(dashboard["vault"]["fees_earned"], 30);
+    assert_eq!(dashboard["positions"][0]["fees_earned"], 30);
     assert_eq!(dashboard["reservations"][0]["status"], "reserved");
 }
 
@@ -93,7 +93,12 @@ async fn deploy_request_without_fiber_rpc(app: axum::Router, token: &str, id: &s
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = response_json(response).await;
-    assert!(body["error"].as_str().unwrap().contains("FIBER_RPC_URL"));
+    assert!(
+        body["error"]
+            .as_str()
+            .unwrap()
+            .contains("on-chain capacity request")
+    );
 }
 
 async fn fetch_dashboard(app: axum::Router, token: &str) -> serde_json::Value {

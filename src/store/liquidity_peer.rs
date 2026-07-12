@@ -26,8 +26,10 @@ impl AppStore {
         stored.fiber_peer_pubkey = Some(peer_pubkey);
         stored.fiber_peer_address = peer_address;
         stored.public_channel = request.public_channel.unwrap_or(stored.public_channel);
-        stored.fiber_note =
-            Some("Fiber peer details attached. Operator can open this channel.".to_string());
+        stored.fiber_note = Some(
+            "Fiber peer details attached. LiquidLane executor can process this request."
+                .to_string(),
+        );
         stored.fiber_error = None;
         stored.updated_at = Utc::now();
         let updated = stored.clone();
@@ -43,6 +45,12 @@ impl AppStore {
             },
         );
         self.persist_locked(&state).await?;
+        drop(state);
+
+        if let Some(executed) = self.try_execute_liquidity_request(updated.id).await {
+            return Ok(executed);
+        }
+
         Ok(updated)
     }
 }

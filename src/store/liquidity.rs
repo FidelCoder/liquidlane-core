@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use super::{
     AppStore,
-    accounting::{request_cell_id, reserve_positions},
+    accounting::{request_cell_id, reserve_positions_with_fee},
     validation::{
         lease_fee, normalize_asset, normalize_optional, normalize_transaction_hash, require_role,
         validate_liquidity_request, validate_pending_intent, validate_transaction_proof,
@@ -135,10 +135,11 @@ impl AppStore {
         {
             return Err(anyhow!("liquidity was just reserved by another request"));
         }
-        reserve_positions(
+        reserve_positions_with_fee(
             &mut state.lp_positions,
             &liquidity_request.asset,
             liquidity_request.amount,
+            liquidity_request.lease_fee,
             now,
         )?;
         if let Some(intent) = intent.as_ref()
@@ -161,6 +162,14 @@ impl AppStore {
             .push(reservation(user, &liquidity_request, now));
         state.liquidity_requests.push(liquidity_request.clone());
         self.persist_locked(&state).await?;
+        drop(state);
+
+        if let Some(executed) = self
+            .try_execute_liquidity_request(liquidity_request.id)
+            .await
+        {
+            return Ok(executed);
+        }
 
         Ok(liquidity_request)
     }

@@ -49,7 +49,7 @@ Use these committed records as the source of truth:
 4. Open **Supply Liquidity**, enter a CKB amount, sign, dry-run, broadcast, and confirm the UI shows a transaction hash.
 5. Confirm `/dashboard` shows an LP receipt with `receipt_cell_out_point` and updated available vault liquidity.
 6. Open **Request Receive Capacity**, enter amount/days/Fiber peer pubkey, sign, broadcast, and confirm the request tx explorer link appears.
-7. Open **Node Console** and submit the request to Fiber. This requires `FIBER_RPC_URL`; without it, Core must return a clear error and leave the request unchanged.
+7. Confirm LiquidLane Core either submits the Fiber handoff automatically or shows a clear executor/Fiber RPC status on the request.
 8. After a channel opens, verify fees move into earned/claimable accounting.
 9. Claim fees or withdraw available liquidity from the LP receipt and confirm each action shows a transaction hash and Core settlement.
 

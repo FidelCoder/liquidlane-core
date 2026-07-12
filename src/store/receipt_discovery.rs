@@ -62,7 +62,7 @@ impl AppStore {
                 available_amount: receipt.available,
                 reserved_amount: receipt.reserved,
                 deployed_amount: receipt.deployed,
-                fees_earned: receipt.claimed,
+                fees_claimed: receipt.claimed,
             });
         }
 
@@ -90,7 +90,7 @@ struct RecoveredReceipt {
     available_amount: u64,
     reserved_amount: u64,
     deployed_amount: u64,
-    fees_earned: u64,
+    fees_claimed: u64,
 }
 
 impl StoreState {
@@ -112,7 +112,7 @@ impl StoreState {
                 || position.available_amount != receipt.available_amount
                 || position.reserved_amount != receipt.reserved_amount
                 || position.deployed_amount != receipt.deployed_amount
-                || position.fees_earned != receipt.fees_earned;
+                || position.fees_claimed != receipt.fees_claimed;
             if changed {
                 position.receipt_cell_out_point = Some(receipt.receipt_cell_out_point);
                 position.supply_tx_hash = receipt.supply_tx_hash;
@@ -120,7 +120,8 @@ impl StoreState {
                 position.available_amount = receipt.available_amount;
                 position.reserved_amount = receipt.reserved_amount;
                 position.deployed_amount = receipt.deployed_amount;
-                position.fees_earned = receipt.fees_earned;
+                position.fees_claimed = receipt.fees_claimed;
+                position.fees_earned = position.fees_earned.max(receipt.fees_claimed);
                 position.status = PositionStatus::Active;
                 position.updated_at = now;
             }
@@ -151,8 +152,8 @@ impl StoreState {
             available_amount: receipt.available_amount,
             reserved_amount: receipt.reserved_amount,
             deployed_amount: receipt.deployed_amount,
-            fees_earned: receipt.fees_earned,
-            fees_claimed: 0,
+            fees_earned: receipt.fees_claimed,
+            fees_claimed: receipt.fees_claimed,
             receipt_cell_id: receipt.receipt_cell_id,
             receipt_cell_out_point: Some(receipt.receipt_cell_out_point),
             supply_tx_hash: receipt.supply_tx_hash,

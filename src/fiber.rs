@@ -16,7 +16,6 @@ pub struct FiberClient {
 
 #[derive(Clone, Debug)]
 pub struct FiberOpenOutcome {
-    pub rpc_submitted: bool,
     pub temporary_channel_id: Option<String>,
     pub channel_id: Option<String>,
     pub note: Option<String>,
@@ -67,6 +66,7 @@ impl FiberClient {
             ));
         }
 
+        self.reject_self_peer(rpc_url, peer_pubkey).await?;
         self.connect_peer(rpc_url, request).await?;
 
         let mut params = Map::new();
@@ -75,8 +75,8 @@ impl FiberClient {
             "funding_amount".to_string(),
             Value::String(funding_amount_hex(&request.asset, request.amount)?),
         );
-        params.insert("public".to_string(), json!(request.public_channel));
-        params.insert("one_way".to_string(), json!(false));
+        params.insert("public".to_string(), json!(false));
+        params.insert("one_way".to_string(), json!(true));
         if let Some(script) = request.funding_udt_type_script.as_ref() {
             params.insert(
                 "funding_udt_type_script".to_string(),
@@ -94,11 +94,11 @@ impl FiberClient {
             .await?;
 
         Ok(FiberOpenOutcome {
-            rpc_submitted: true,
             temporary_channel_id: string_field(&result, "temporary_channel_id"),
             channel_id: string_field(&result, "channel_id"),
             note: Some(
-                "Fiber connect_peer and open_channel submitted to configured node.".to_string(),
+                "Private one-way Fiber connect_peer and open_channel submitted to configured node."
+                    .to_string(),
             ),
         })
     }
@@ -117,6 +117,21 @@ impl FiberClient {
         }
 
         Ok(rpc_url)
+    }
+
+    async fn reject_self_peer(&self, rpc_url: &str, peer_pubkey: &str) -> Result<()> {
+        let info = self
+            .rpc_call_params(rpc_url, "node_info", "liquidlane-node-info", json!([]))
+            .await?;
+        let Some(local_pubkey) = string_field(&info, "pubkey") else {
+            return Ok(());
+        };
+        if local_pubkey.eq_ignore_ascii_case(peer_pubkey) {
+            return Err(anyhow!(
+                "Receiving Fiber pubkey cannot be the operator node pubkey. Use the merchant or receiver Fiber node pubkey."
+            ));
+        }
+        Ok(())
     }
 
     async fn connect_peer(&self, rpc_url: &str, request: &LiquidityRequest) -> Result<()> {
@@ -143,11 +158,22 @@ impl FiberClient {
         id: impl Into<String>,
         params: Value,
     ) -> Result<Value> {
+        self.rpc_call_params(rpc_url, method, id, json!([params]))
+            .await
+    }
+
+    async fn rpc_call_params(
+        &self,
+        rpc_url: &str,
+        method: &str,
+        id: impl Into<String>,
+        params: Value,
+    ) -> Result<Value> {
         let body = json!({
             "jsonrpc": "2.0",
             "id": id.into(),
             "method": method,
-            "params": [params],
+            "params": params,
         });
 
         let mut builder = self.http.post(rpc_url).json(&body);
@@ -211,7 +237,7 @@ mod tests {
     use super::funding_amount_hex;
 
     #[test]
-    fn converts_ckb_funding_amount_to_shannons_hex() {
+    fn converts_ckb_funding_amount_to_hex_shannons() {
         assert_eq!(funding_amount_hex("CKB", 499).unwrap(), "0xb9e459300");
     }
 

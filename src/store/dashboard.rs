@@ -133,12 +133,13 @@ impl StoreState {
 
     fn visible_deposits(&self, user: &User) -> Vec<Deposit> {
         match user.role {
-            UserRole::Operator | UserRole::Merchant => self
+            UserRole::Operator => self
                 .deposits
                 .iter()
                 .filter(|deposit| is_verified_deposit(deposit))
                 .cloned()
                 .collect(),
+            UserRole::Merchant => Vec::new(),
             UserRole::Lp => self
                 .deposits
                 .iter()
@@ -150,7 +151,8 @@ impl StoreState {
 
     fn visible_positions(&self, user: &User) -> Vec<LpPosition> {
         let positions = match user.role {
-            UserRole::Operator | UserRole::Merchant => self.lp_positions.clone(),
+            UserRole::Operator => self.lp_positions.clone(),
+            UserRole::Merchant => Vec::new(),
             UserRole::Lp => self
                 .lp_positions
                 .iter()

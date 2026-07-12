@@ -11,32 +11,7 @@ pub(super) fn request_cell_id(id: Uuid) -> String {
     format!("ll-request-{id}")
 }
 
-pub(super) fn reserve_positions(
-    positions: &mut [LpPosition],
-    asset: &str,
-    mut amount: u64,
-    now: chrono::DateTime<chrono::Utc>,
-) -> Result<()> {
-    for position in active_positions_mut(positions, asset) {
-        if amount == 0 {
-            break;
-        }
-        let taken = position.available_amount.min(amount);
-        if taken == 0 {
-            continue;
-        }
-        position.available_amount -= taken;
-        position.reserved_amount += taken;
-        position.updated_at = now;
-        amount -= taken;
-    }
-    if amount > 0 {
-        return Err(anyhow!("liquidity was just reserved by another request"));
-    }
-    Ok(())
-}
-
-pub(super) fn deploy_reserved_positions(
+pub(super) fn reserve_positions_with_fee(
     positions: &mut [LpPosition],
     asset: &str,
     mut amount: u64,
@@ -50,53 +25,28 @@ pub(super) fn deploy_reserved_positions(
         if amount == 0 {
             break;
         }
-        let moved = position.reserved_amount.min(amount);
-        if moved == 0 {
+        let taken = position.available_amount.min(amount);
+        if taken == 0 {
             continue;
         }
-        let fee_share = if amount == moved {
+        let fee_share = if amount == taken {
             undistributed_fee
         } else {
             lease_fee
-                .saturating_mul(moved)
+                .saturating_mul(taken)
                 .saturating_div(total_amount)
                 .min(undistributed_fee)
         };
 
-        position.reserved_amount -= moved;
-        position.deployed_amount += moved;
+        position.available_amount -= taken;
+        position.reserved_amount += taken;
         position.fees_earned += fee_share;
         position.updated_at = now;
-        amount -= moved;
+        amount -= taken;
         undistributed_fee = undistributed_fee.saturating_sub(fee_share);
     }
     if amount > 0 {
-        return Err(anyhow!("reserved liquidity accounting is incomplete"));
-    }
-    Ok(())
-}
-
-pub(super) fn release_reserved_positions(
-    positions: &mut [LpPosition],
-    asset: &str,
-    mut amount: u64,
-    now: chrono::DateTime<chrono::Utc>,
-) -> Result<()> {
-    for position in active_positions_mut(positions, asset) {
-        if amount == 0 {
-            break;
-        }
-        let released = position.reserved_amount.min(amount);
-        if released == 0 {
-            continue;
-        }
-        position.reserved_amount -= released;
-        position.available_amount += released;
-        position.updated_at = now;
-        amount -= released;
-    }
-    if amount > 0 {
-        return Err(anyhow!("reserved liquidity accounting is incomplete"));
+        return Err(anyhow!("liquidity was just reserved by another request"));
     }
     Ok(())
 }

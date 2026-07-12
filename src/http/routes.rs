@@ -11,8 +11,8 @@ use super::{ApiError, AppState, AuthedUser};
 use crate::domain::{
     AttachFiberPeerRequest, ChallengeRequest, ConnectWalletRequest, CreateDepositRequest,
     CreateFeeClaimRequest, CreateLiquidityRequest, CreateSupplyIntentRequest,
-    CreateWithdrawalIntentRequest, SettleFeeClaimRequest, SettleWithdrawalRequest, VaultConfig,
-    VerifyWalletRequest,
+    CreateWithdrawalIntentRequest, SettleFeeClaimRequest, SettleWithdrawalRequest, UserRole,
+    VaultConfig, VerifyWalletRequest,
 };
 
 #[derive(Serialize)]
@@ -25,6 +25,10 @@ pub(super) struct HealthResponse {
     ckb_network: String,
     vault_configured: bool,
     beta_ready: bool,
+    executor_enabled: bool,
+    executor_funding_mode: String,
+    executor_queued_requests: usize,
+    executor_pending_handoffs: usize,
 }
 
 pub(super) async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
@@ -35,6 +39,7 @@ pub(super) async fn health(State(state): State<AppState>) -> Json<HealthResponse
     );
     let beta_ready =
         is_testnet && vault.configured && state.ckb_rpc_configured && state.fiber_rpc_configured;
+    let executor = state.store.executor_health().await;
 
     Json(HealthResponse {
         status: "ok",
@@ -45,7 +50,23 @@ pub(super) async fn health(State(state): State<AppState>) -> Json<HealthResponse
         ckb_network: vault.network,
         vault_configured: vault.configured,
         beta_ready,
+        executor_enabled: executor.enabled,
+        executor_funding_mode: executor.funding_mode,
+        executor_queued_requests: executor.queued_requests,
+        executor_pending_handoffs: executor.pending_handoffs,
     })
+}
+
+pub(super) async fn executor_health(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+) -> Result<impl IntoResponse, ApiError> {
+    if user.role != UserRole::Operator {
+        return Err(ApiError::unauthorized(
+            "executor health is internal to LiquidLane operations",
+        ));
+    }
+    Ok(Json(state.store.executor_health().await))
 }
 
 pub(super) async fn create_challenge(

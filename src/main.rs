@@ -39,6 +39,10 @@ async fn main() -> anyhow::Result<()> {
         config.vault.clone(),
         ckb_rpc,
         config.require_ckb_rpc,
+        config.executor_enabled,
+        config.executor_poll_interval_ms,
+        config.executor_max_retries,
+        config.executor_funding_mode.clone(),
     )
     .await?;
     let app = router(AppState {
@@ -57,6 +61,8 @@ async fn main() -> anyhow::Result<()> {
         fiber_rpc_configured = fiber.is_configured(),
         ckb_rpc_configured = config.ckb_rpc_url.is_some(),
         ckb_rpc_required = config.require_ckb_rpc,
+        executor_enabled = config.executor_enabled,
+        executor_funding_mode = %config.executor_funding_mode,
         vault_asset = %config.vault.asset,
         vault_network = %config.vault.network,
         ckb_script_build_dir = %config.ckb_script_build_dir.display(),

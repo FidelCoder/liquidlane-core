@@ -12,6 +12,10 @@ pub struct AppConfig {
     pub ckb_rpc_url: Option<String>,
     pub ckb_accept_pending_txs: bool,
     pub require_ckb_rpc: bool,
+    pub executor_enabled: bool,
+    pub executor_poll_interval_ms: u64,
+    pub executor_max_retries: u8,
+    pub executor_funding_mode: String,
     pub ckb_script_build_dir: PathBuf,
     pub vault: VaultConfig,
 }
@@ -54,6 +58,11 @@ impl AppConfig {
             "LIQUIDLANE_REQUIRE_CKB_RPC",
             environment != "development" && environment != "test",
         )?;
+        let executor_enabled = bool_env("LIQUIDLANE_EXECUTOR_ENABLED", environment != "test")?;
+        let executor_poll_interval_ms = u64_env("LIQUIDLANE_EXECUTOR_POLL_INTERVAL_MS", 5_000)?;
+        let executor_max_retries = u8_env("LIQUIDLANE_EXECUTOR_MAX_RETRIES", 3)?;
+        let executor_funding_mode = optional_env("LIQUIDLANE_EXECUTOR_FUNDING_MODE")
+            .unwrap_or_else(|| "managed_node_beta".to_string());
         let vault = VaultConfig {
             asset: env::var("LIQUIDLANE_VAULT_ASSET")
                 .unwrap_or_else(|_| "CKB".to_string())
@@ -86,6 +95,10 @@ impl AppConfig {
             ckb_rpc_url,
             ckb_accept_pending_txs,
             require_ckb_rpc,
+            executor_enabled,
+            executor_poll_interval_ms,
+            executor_max_retries,
+            executor_funding_mode,
             ckb_script_build_dir,
             vault,
         })
@@ -137,6 +150,24 @@ fn bool_env(key: &str, default: bool) -> anyhow::Result<bool> {
         "0" | "false" | "no" | "off" => Ok(false),
         _ => anyhow::bail!("{key} must be a boolean"),
     }
+}
+
+fn u64_env(key: &str, default: u64) -> anyhow::Result<u64> {
+    let Some(value) = optional_env(key) else {
+        return Ok(default);
+    };
+    value
+        .parse()
+        .map_err(|_| anyhow::anyhow!("{key} must be an unsigned integer"))
+}
+
+fn u8_env(key: &str, default: u8) -> anyhow::Result<u8> {
+    let Some(value) = optional_env(key) else {
+        return Ok(default);
+    };
+    value
+        .parse()
+        .map_err(|_| anyhow::anyhow!("{key} must be an unsigned integer from 0 to 255"))
 }
 
 fn validate_out_point(value: String) -> anyhow::Result<String> {
