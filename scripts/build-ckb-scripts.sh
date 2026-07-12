@@ -32,6 +32,7 @@ for script in \
   liquidlane-vault-type \
   liquidlane-lp-receipt-type \
   liquidlane-capacity-request-type \
+  liquidlane-funding-intent-type \
   liquidlane-fee-claim-type; do
   cp "ckb-scripts/target/$target/release/$script" "$out_dir/$script"
   riscv64-unknown-elf-strip "$out_dir/$script"

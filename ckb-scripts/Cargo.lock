@@ -97,6 +97,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "liquidlane-funding-intent-type"
+version = "0.1.0"
+dependencies = [
+ "ckb-std",
+ "liquidlane-scripts-shared",
+]
+
+[[package]]
 name = "liquidlane-lp-receipt-type"
 version = "0.1.0"
 dependencies = [

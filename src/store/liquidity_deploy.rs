@@ -41,7 +41,7 @@ impl AppStore {
         }
     }
 
-    async fn submit_fiber_handoff(
+    pub(super) async fn submit_fiber_handoff(
         &self,
         id: Uuid,
         actor_id: Uuid,
@@ -257,7 +257,7 @@ pub(super) fn update_reservation_and_positions(
                     reservation.status = ReservationStatus::Failed;
                 }
             }
-            LiquidityStatus::Expired | LiquidityStatus::Released => {
+            LiquidityStatus::Expired | LiquidityStatus::Released | LiquidityStatus::Settled => {
                 reservation.status = ReservationStatus::Released;
             }
             LiquidityStatus::Requested => {}

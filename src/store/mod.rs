@@ -10,13 +10,24 @@ mod chain_types;
 mod dashboard;
 mod executor;
 mod executor_channel;
+#[cfg(test)]
+mod executor_channel_tests;
 mod funding_intent;
+#[cfg(test)]
+mod funding_intent_tests;
+mod funding_monitor;
+mod funding_package;
+#[cfg(test)]
+mod funding_package_tests;
 mod liquidity;
 mod liquidity_deploy;
 #[cfg(test)]
 mod liquidity_deploy_tests;
 mod liquidity_lookup;
 mod liquidity_peer;
+mod liquidity_repair;
+#[cfg(test)]
+mod liquidity_repair_tests;
 mod monitoring;
 mod receipt_discovery;
 mod request_discovery;
@@ -63,6 +74,8 @@ pub struct AppStore {
     executor_poll_interval_ms: u64,
     executor_max_retries: u8,
     executor_funding_mode: String,
+    vault_funding_builder_enabled: bool,
+    vault_funding_signer_enabled: bool,
     inner: RwLock<StoreState>,
 }
 
@@ -108,6 +121,8 @@ impl AppStore {
         executor_poll_interval_ms: u64,
         executor_max_retries: u8,
         executor_funding_mode: String,
+        vault_funding_builder_enabled: bool,
+        vault_funding_signer_enabled: bool,
     ) -> Result<Self> {
         let state = match tokio::fs::read_to_string(&path).await {
             Ok(contents) => serde_json::from_str(&contents)?,
@@ -125,6 +140,8 @@ impl AppStore {
             executor_poll_interval_ms,
             executor_max_retries,
             executor_funding_mode: normalize_executor_funding_mode(&executor_funding_mode),
+            vault_funding_builder_enabled,
+            vault_funding_signer_enabled,
             inner: RwLock::new(state),
         })
     }
@@ -140,6 +157,8 @@ impl AppStore {
             executor_poll_interval_ms: 5_000,
             executor_max_retries: 3,
             executor_funding_mode: FUNDING_MODE_VAULT_EXTERNAL.to_string(),
+            vault_funding_builder_enabled: false,
+            vault_funding_signer_enabled: false,
             vault: VaultConfig {
                 asset: "CKB".to_string(),
                 address: Some("ckt1qpkp7qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq".to_string()),
@@ -149,6 +168,7 @@ impl AppStore {
                 ),
                 network: "testnet".to_string(),
                 configured: true,
+                script_version: "v1".to_string(),
                 scripts: crate::domain::VaultScripts {
                     vault_lock_code_hash: None,
                     vault_lock_out_point: None,
@@ -158,6 +178,8 @@ impl AppStore {
                     lp_receipt_type_out_point: None,
                     request_type_code_hash: None,
                     request_type_out_point: None,
+                    funding_intent_type_code_hash: None,
+                    funding_intent_type_out_point: None,
                     fee_claim_type_code_hash: None,
                     fee_claim_type_out_point: None,
                 },

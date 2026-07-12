@@ -19,6 +19,8 @@ pub struct AppConfig {
     pub executor_poll_interval_ms: u64,
     pub executor_max_retries: u8,
     pub executor_funding_mode: String,
+    pub vault_funding_builder_enabled: bool,
+    pub vault_funding_signer_enabled: bool,
     pub ckb_script_build_dir: PathBuf,
     pub cors_allowed_origin: Option<String>,
     pub vault: VaultConfig,
@@ -70,6 +72,10 @@ impl AppConfig {
                 .or_else(|| optional_env("LIQUIDLANE_EXECUTOR_FUNDING_MODE"))
                 .unwrap_or_else(|| FUNDING_MODE_VAULT_EXTERNAL.to_string()),
         );
+        let vault_funding_builder_enabled =
+            bool_env("LIQUIDLANE_VAULT_FUNDING_BUILDER_ENABLED", false)?;
+        let vault_funding_signer_enabled =
+            bool_env("LIQUIDLANE_VAULT_FUNDING_SIGNER_ENABLED", false)?;
         let cors_allowed_origin = optional_env("LIQUIDLANE_CORS_ALLOWED_ORIGIN");
         let vault = VaultConfig {
             asset: env::var("LIQUIDLANE_VAULT_ASSET")
@@ -80,6 +86,9 @@ impl AppConfig {
             address: vault_address,
             cell_out_point: vault_cell_out_point,
             network: ckb_network,
+            script_version: optional_env("LIQUIDLANE_VAULT_SCRIPT_VERSION")
+                .unwrap_or_else(|| "v1".to_string())
+                .to_ascii_lowercase(),
             scripts: VaultScripts {
                 vault_lock_code_hash: optional_env("LIQUIDLANE_VAULT_LOCK_CODE_HASH"),
                 vault_lock_out_point: optional_env("LIQUIDLANE_VAULT_LOCK_OUT_POINT"),
@@ -89,6 +98,12 @@ impl AppConfig {
                 lp_receipt_type_out_point: optional_env("LIQUIDLANE_LP_RECEIPT_TYPE_OUT_POINT"),
                 request_type_code_hash: optional_env("LIQUIDLANE_REQUEST_TYPE_CODE_HASH"),
                 request_type_out_point: optional_env("LIQUIDLANE_REQUEST_TYPE_OUT_POINT"),
+                funding_intent_type_code_hash: optional_env(
+                    "LIQUIDLANE_FUNDING_INTENT_TYPE_CODE_HASH",
+                ),
+                funding_intent_type_out_point: optional_env(
+                    "LIQUIDLANE_FUNDING_INTENT_TYPE_OUT_POINT",
+                ),
                 fee_claim_type_code_hash: optional_env("LIQUIDLANE_FEE_CLAIM_TYPE_CODE_HASH"),
                 fee_claim_type_out_point: optional_env("LIQUIDLANE_FEE_CLAIM_TYPE_OUT_POINT"),
             },
@@ -107,6 +122,8 @@ impl AppConfig {
             executor_poll_interval_ms,
             executor_max_retries,
             executor_funding_mode,
+            vault_funding_builder_enabled,
+            vault_funding_signer_enabled,
             ckb_script_build_dir,
             cors_allowed_origin,
             vault,

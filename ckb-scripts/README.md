@@ -25,6 +25,12 @@ All script arguments are raw 32-byte hashes packed in order. Vault references us
 | `capacity-request-type` | vault type script hash, merchant lock hash, operator lock hash, request id |
 | `fee-claim-type` | vault type script hash, LP receipt type script hash, LP lock hash, claim id |
 
+## V2 Funding Artifact
+
+`funding-intent-type` is the first deployable artifact for the vault-funded Fiber path. It binds a reserved request, executor authority, and expected Fiber funding lock so Core can distinguish real LP-vault funding from node-wallet diagnostic funding.
+
+The full v2 rollout still requires the active vault/request/receipt scripts and vault cell to be migrated or freshly deployed with `LIQUIDLANE_VAULT_SCRIPT_VERSION=v2`.
+
 ## Deployment
 
 Deployment records live in `ckb-scripts/deployments/`. Local builds only have artifact hashes; public confirmation requires CKB testnet transaction hashes and cell out-points.

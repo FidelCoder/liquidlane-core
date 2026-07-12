@@ -44,6 +44,8 @@ async fn main() -> anyhow::Result<()> {
             config.executor_poll_interval_ms,
             config.executor_max_retries,
             config.executor_funding_mode.clone(),
+            config.vault_funding_builder_enabled,
+            config.vault_funding_signer_enabled,
         )
         .await?,
     );

@@ -26,6 +26,8 @@ pub enum ExecutorJobStatus {
     AwaitingVaultFunding,
     AwaitingFundingConfirmation,
     ChannelActive,
+    ChannelSettled,
+    Released,
     RetryableFailed,
     TerminalFailed,
 }

@@ -176,6 +176,7 @@ fn merge_recovered_status(local: &LiquidityStatus, recovered: &LiquidityStatus) 
                 | LiquidityStatus::Failed
                 | LiquidityStatus::Expired
                 | LiquidityStatus::Released
+                | LiquidityStatus::Settled
         )
     {
         return local.clone();
@@ -191,6 +192,8 @@ fn reservation_status(status: &LiquidityStatus) -> ReservationStatus {
         | LiquidityStatus::FundingSubmitted
         | LiquidityStatus::PendingFiberChannel => ReservationStatus::Reserved,
         LiquidityStatus::Failed => ReservationStatus::Reserved,
-        LiquidityStatus::Expired | LiquidityStatus::Released => ReservationStatus::Released,
+        LiquidityStatus::Expired | LiquidityStatus::Released | LiquidityStatus::Settled => {
+            ReservationStatus::Released
+        }
     }
 }

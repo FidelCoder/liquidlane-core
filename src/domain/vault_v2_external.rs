@@ -107,6 +107,49 @@ mod tests {
         );
     }
 
+    #[test]
+    fn external_funding_rejects_wrong_request_state() {
+        let mut transition = valid_transition();
+        transition.request.status = CapacityRequestV2Status::Reserved;
+
+        assert_eq!(
+            validate_external_funding_transition(&transition),
+            Err("external funding request must be opening or active".to_string())
+        );
+    }
+
+    #[test]
+    fn external_funding_rejects_available_spend() {
+        let mut transition = valid_transition();
+        transition.after.available -= 1;
+        transition.after.deployed += 1;
+
+        assert_eq!(
+            validate_external_funding_transition(&transition),
+            Err("external funding cannot spend available liquidity".to_string())
+        );
+    }
+
+    #[test]
+    fn external_funding_rejects_bad_lock_hash() {
+        let mut transition = valid_transition();
+        transition.funding.funding_lock_hash = "0x00".to_string();
+
+        assert_eq!(
+            validate_external_funding_transition(&transition),
+            Err("funding_lock_hash must be a 32-byte hex hash".to_string())
+        );
+    }
+
+    fn valid_transition() -> VaultExternalFundingTransition {
+        VaultExternalFundingTransition {
+            before: vault(1000, 650, 350, 0),
+            after: vault(1000, 650, 0, 350),
+            request: request(350),
+            funding: funding(350),
+        }
+    }
+
     fn vault(total: u64, available: u64, reserved: u64, deployed: u64) -> VaultV2Data {
         VaultV2Data {
             total,

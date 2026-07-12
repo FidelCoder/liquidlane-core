@@ -9,6 +9,7 @@ SCRIPTS = [
     "liquidlane-vault-type",
     "liquidlane-lp-receipt-type",
     "liquidlane-capacity-request-type",
+    "liquidlane-funding-intent-type",
     "liquidlane-fee-claim-type",
 ]
 

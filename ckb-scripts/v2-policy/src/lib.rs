@@ -59,59 +59,124 @@ pub enum PolicyError {
 pub type PolicyResult = Result<(), PolicyError>;
 
 pub fn validate_vault(vault: VaultV2) -> PolicyResult {
-    require(vault.total == vault.available + vault.reserved + vault.deployed, PolicyError::BadVault)
+    require(
+        vault.total == vault.available + vault.reserved + vault.deployed,
+        PolicyError::BadVault,
+    )
 }
 
 pub fn validate_receipt(receipt: ReceiptV2) -> PolicyResult {
-    require(receipt.supplied == receipt.available + receipt.reserved + receipt.deployed, PolicyError::BadReceipt)?;
+    require(
+        receipt.supplied == receipt.available + receipt.reserved + receipt.deployed,
+        PolicyError::BadReceipt,
+    )?;
     require(receipt.earned >= receipt.claimed, PolicyError::BadReceipt)
 }
 
 pub fn validate_request(request: RequestV2) -> PolicyResult {
-    require(request.amount > 0 && request.lease_fee > 0 && request.expiry > 0, PolicyError::BadRequest)
+    require(
+        request.amount > 0 && request.lease_fee > 0 && request.expiry > 0,
+        PolicyError::BadRequest,
+    )
 }
 
 pub fn validate_supply(before: VaultV2, after: VaultV2, receipt: ReceiptV2) -> PolicyResult {
     validate_vault(before)?;
     validate_vault(after)?;
     validate_receipt(receipt)?;
-    let delta = after.total.checked_sub(before.total).ok_or(PolicyError::BadDelta)?;
+    let delta = after
+        .total
+        .checked_sub(before.total)
+        .ok_or(PolicyError::BadDelta)?;
     require(delta > 0, PolicyError::BadDelta)?;
-    require(after.available == before.available + delta, PolicyError::BadDelta)?;
-    require(receipt.supplied == delta && receipt.available == delta, PolicyError::BadReceipt)
+    require(
+        after.available == before.available + delta,
+        PolicyError::BadDelta,
+    )?;
+    require(
+        receipt.supplied == delta && receipt.available == delta,
+        PolicyError::BadReceipt,
+    )
 }
 
-pub fn validate_withdraw(before: VaultV2, after: VaultV2, receipt: ReceiptV2, amount: u64) -> PolicyResult {
+pub fn validate_withdraw(
+    before: VaultV2,
+    after: VaultV2,
+    receipt: ReceiptV2,
+    amount: u64,
+) -> PolicyResult {
     validate_vault(before)?;
     validate_vault(after)?;
     validate_receipt(receipt)?;
     require(amount > 0, PolicyError::BadDelta)?;
-    require(receipt.available >= amount, PolicyError::InsufficientAvailable)?;
-    require(before.available >= amount && before.total >= amount, PolicyError::InsufficientAvailable)?;
+    require(
+        receipt.available >= amount,
+        PolicyError::InsufficientAvailable,
+    )?;
+    require(
+        before.available >= amount && before.total >= amount,
+        PolicyError::InsufficientAvailable,
+    )?;
     require(after.total == before.total - amount, PolicyError::BadDelta)?;
-    require(after.available == before.available - amount, PolicyError::BadDelta)
+    require(
+        after.available == before.available - amount,
+        PolicyError::BadDelta,
+    )
 }
 
 pub fn validate_reserve(before: VaultV2, after: VaultV2, request: RequestV2) -> PolicyResult {
     validate_vault(before)?;
     validate_vault(after)?;
     validate_request(request)?;
-    require(request.status == RequestStatus::Reserved, PolicyError::BadRequest)?;
-    require(before.available >= request.amount, PolicyError::InsufficientAvailable)?;
-    require(after.available == before.available - request.amount, PolicyError::BadDelta)?;
-    require(after.reserved == before.reserved + request.amount, PolicyError::BadDelta)?;
-    require(after.fee_balance == before.fee_balance + request.lease_fee, PolicyError::BadDelta)
+    require(
+        request.status == RequestStatus::Reserved,
+        PolicyError::BadRequest,
+    )?;
+    require(
+        before.available >= request.amount,
+        PolicyError::InsufficientAvailable,
+    )?;
+    require(
+        after.available == before.available - request.amount,
+        PolicyError::BadDelta,
+    )?;
+    require(
+        after.reserved == before.reserved + request.amount,
+        PolicyError::BadDelta,
+    )?;
+    require(
+        after.fee_balance == before.fee_balance + request.lease_fee,
+        PolicyError::BadDelta,
+    )
 }
 
 pub fn validate_execute(before: VaultV2, after: VaultV2, request: RequestV2) -> PolicyResult {
     validate_vault(before)?;
     validate_vault(after)?;
     validate_request(request)?;
-    require(matches!(request.status, RequestStatus::Opening | RequestStatus::Active), PolicyError::BadRequest)?;
-    require(before.reserved >= request.amount, PolicyError::InsufficientAvailable)?;
-    require(after.reserved == before.reserved - request.amount, PolicyError::BadDelta)?;
-    require(after.deployed == before.deployed + request.amount, PolicyError::BadDelta)?;
-    require(after.total == before.total, PolicyError::UnauthorizedValueMovement)
+    require(
+        matches!(
+            request.status,
+            RequestStatus::Opening | RequestStatus::Active
+        ),
+        PolicyError::BadRequest,
+    )?;
+    require(
+        before.reserved >= request.amount,
+        PolicyError::InsufficientAvailable,
+    )?;
+    require(
+        after.reserved == before.reserved - request.amount,
+        PolicyError::BadDelta,
+    )?;
+    require(
+        after.deployed == before.deployed + request.amount,
+        PolicyError::BadDelta,
+    )?;
+    require(
+        after.total == before.total,
+        PolicyError::UnauthorizedValueMovement,
+    )
 }
 
 pub fn validate_external_funding(
@@ -122,29 +187,66 @@ pub fn validate_external_funding(
 ) -> PolicyResult {
     validate_execute(before, after, request)?;
     require(funding.amount == request.amount, PolicyError::BadDelta)?;
-    require(!is_zero_hash(funding.funding_lock_hash), PolicyError::BadRequest)?;
-    require(!is_zero_hash(funding.shutdown_lock_hash), PolicyError::BadRequest)?;
-    require(!is_zero_hash(funding.request_id_hash), PolicyError::BadRequest)
+    require(
+        !is_zero_hash(funding.funding_lock_hash),
+        PolicyError::BadRequest,
+    )?;
+    require(
+        !is_zero_hash(funding.shutdown_lock_hash),
+        PolicyError::BadRequest,
+    )?;
+    require(
+        !is_zero_hash(funding.request_id_hash),
+        PolicyError::BadRequest,
+    )
 }
 
-pub fn validate_release(before: VaultV2, after: VaultV2, request: RequestV2, now: u64) -> PolicyResult {
+pub fn validate_release(
+    before: VaultV2,
+    after: VaultV2,
+    request: RequestV2,
+    now: u64,
+) -> PolicyResult {
     validate_vault(before)?;
     validate_vault(after)?;
     validate_request(request)?;
     require(now >= request.expiry, PolicyError::NotExpired)?;
-    require(before.reserved >= request.amount, PolicyError::InsufficientAvailable)?;
-    require(after.reserved == before.reserved - request.amount, PolicyError::BadDelta)?;
-    require(after.available == before.available + request.amount, PolicyError::BadDelta)
+    require(
+        before.reserved >= request.amount,
+        PolicyError::InsufficientAvailable,
+    )?;
+    require(
+        after.reserved == before.reserved - request.amount,
+        PolicyError::BadDelta,
+    )?;
+    require(
+        after.available == before.available + request.amount,
+        PolicyError::BadDelta,
+    )
 }
 
-pub fn validate_claim(before: VaultV2, after: VaultV2, receipt: ReceiptV2, amount: u64) -> PolicyResult {
+pub fn validate_claim(
+    before: VaultV2,
+    after: VaultV2,
+    receipt: ReceiptV2,
+    amount: u64,
+) -> PolicyResult {
     validate_vault(before)?;
     validate_vault(after)?;
     validate_receipt(receipt)?;
     require(amount > 0, PolicyError::BadDelta)?;
-    require(before.fee_balance >= amount, PolicyError::InsufficientAvailable)?;
-    require(receipt.earned >= receipt.claimed + amount, PolicyError::InsufficientAvailable)?;
-    require(after.fee_balance == before.fee_balance - amount, PolicyError::BadDelta)
+    require(
+        before.fee_balance >= amount,
+        PolicyError::InsufficientAvailable,
+    )?;
+    require(
+        receipt.earned >= receipt.claimed + amount,
+        PolicyError::InsufficientAvailable,
+    )?;
+    require(
+        after.fee_balance == before.fee_balance - amount,
+        PolicyError::BadDelta,
+    )
 }
 
 fn is_zero_hash(hash: [u8; 32]) -> bool {
@@ -152,54 +254,12 @@ fn is_zero_hash(hash: [u8; 32]) -> bool {
 }
 
 fn require(condition: bool, error: PolicyError) -> PolicyResult {
-    if condition { Ok(()) } else { Err(error) }
+    if condition {
+        Ok(())
+    } else {
+        Err(error)
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn reserve_moves_available_to_reserved_and_collects_fee() {
-        let request = RequestV2 { amount: 200, lease_fee: 2, expiry: 100, status: RequestStatus::Reserved };
-        assert_eq!(validate_reserve(vault(500, 500, 0, 0, 0), vault(500, 300, 200, 0, 2), request), Ok(()));
-    }
-
-    #[test]
-    fn execute_cannot_reduce_total() {
-        let request = RequestV2 { amount: 200, lease_fee: 2, expiry: 100, status: RequestStatus::Active };
-        assert_eq!(validate_execute(vault(500, 300, 200, 0, 2), vault(400, 300, 0, 200, 2), request), Err(PolicyError::BadVault));
-    }
-
-    #[test]
-    fn external_funding_requires_exact_amount() {
-        let request = RequestV2 { amount: 200, lease_fee: 2, expiry: 100, status: RequestStatus::Opening };
-        assert_eq!(
-            validate_external_funding(vault(500, 300, 200, 0, 2), vault(500, 300, 0, 200, 2), request, funding(199)),
-            Err(PolicyError::BadDelta)
-        );
-        assert_eq!(
-            validate_external_funding(vault(500, 300, 200, 0, 2), vault(500, 300, 0, 200, 2), request, funding(200)),
-            Ok(())
-        );
-    }
-
-    #[test]
-    fn release_requires_expiry() {
-        let request = RequestV2 { amount: 200, lease_fee: 2, expiry: 100, status: RequestStatus::Expired };
-        assert_eq!(validate_release(vault(500, 300, 200, 0, 2), vault(500, 500, 0, 0, 2), request, 99), Err(PolicyError::NotExpired));
-    }
-
-    fn vault(total: u64, available: u64, reserved: u64, deployed: u64, fee_balance: u64) -> VaultV2 {
-        VaultV2 { total, available, reserved, deployed, fee_balance }
-    }
-
-    fn funding(amount: u64) -> FundingIntentV2 {
-        FundingIntentV2 {
-            amount,
-            funding_lock_hash: [1; 32],
-            shutdown_lock_hash: [2; 32],
-            request_id_hash: [3; 32],
-        }
-    }
-}
+mod tests;

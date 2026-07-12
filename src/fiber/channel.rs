@@ -6,7 +6,11 @@ pub struct FiberChannel {
     pub temporary_channel_id: Option<String>,
     pub peer_pubkey: Option<String>,
     pub amount_ckb: Option<u64>,
+    pub funding_tx_hash: Option<String>,
+    pub funding_out_point: Option<String>,
+    pub settlement_tx_hash: Option<String>,
     pub is_usable: bool,
+    pub is_closed: bool,
     pub is_failed: bool,
 }
 
@@ -30,14 +34,30 @@ pub(super) fn channel_from_value(value: &Value) -> FiberChannel {
     );
     let amount_ckb =
         string_field_any(value, &["funding_amount", "local_balance"]).and_then(hex_shannons_to_ckb);
-    let is_failed = channel_failed(state.as_deref());
+    let funding_tx_hash = string_field_any(value, &["funding_tx_hash", "funding_txid", "tx_hash"]);
+    let funding_out_point = string_field_any(
+        value,
+        &["funding_out_point", "funding_outpoint", "out_point"],
+    );
+    let settlement_tx_hash = string_field_any(
+        value,
+        &["settlement_tx_hash", "closing_tx_hash", "close_tx_hash"],
+    );
+    let failure_state =
+        string_field_any(value, &["state_flags", "failure_reason", "error", "reason"]);
+    let is_failed = channel_failed(state.as_deref()) || channel_failed(failure_state.as_deref());
+    let is_closed = channel_closed(state.as_deref()) || settlement_tx_hash.is_some();
     let is_usable = channel_usable(channel_id.as_deref(), state.as_deref());
     FiberChannel {
         channel_id,
         temporary_channel_id,
         peer_pubkey,
         amount_ckb,
+        funding_tx_hash,
+        funding_out_point,
+        settlement_tx_hash,
         is_usable,
+        is_closed,
         is_failed,
     }
 }
@@ -59,12 +79,22 @@ fn channel_usable(channel_id: Option<&str>, state: Option<&str>) -> bool {
         || state.contains("normal")
 }
 
+fn channel_closed(state: Option<&str>) -> bool {
+    let Some(state) = state else {
+        return false;
+    };
+    let state = state.to_ascii_lowercase();
+    ["closed", "shutdown", "settled"]
+        .iter()
+        .any(|needle| state.contains(needle))
+}
+
 fn channel_failed(state: Option<&str>) -> bool {
     let Some(state) = state else {
         return false;
     };
     let state = state.to_ascii_lowercase();
-    ["closed", "shutdown", "failed", "abandoned", "aborted"]
+    ["failed", "abandoned", "aborted"]
         .iter()
         .any(|needle| state.contains(needle))
 }
@@ -114,13 +144,16 @@ mod tests {
             "channel_id": "0xabc",
             "temporary_channel_id": "0xtmp",
             "peer_pubkey": "03peer",
-            "state": "CHANNEL_READY"
+            "state": "CHANNEL_READY",
+            "funding_tx_hash": "0xfund"
         }));
 
         assert_eq!(channel.channel_id.as_deref(), Some("0xabc"));
         assert_eq!(channel.temporary_channel_id.as_deref(), Some("0xtmp"));
         assert_eq!(channel.peer_pubkey.as_deref(), Some("03peer"));
+        assert_eq!(channel.funding_tx_hash.as_deref(), Some("0xfund"));
         assert!(channel.is_usable);
+        assert!(!channel.is_closed);
         assert!(!channel.is_failed);
     }
 }
@@ -140,7 +173,30 @@ mod failed_tests {
         }));
 
         assert_eq!(channel.amount_ckb, Some(500));
+        assert!(channel.is_closed);
         assert!(channel.is_failed);
         assert!(!channel.is_usable);
+    }
+}
+
+#[cfg(test)]
+mod settled_tests {
+    use super::channel_from_value;
+    use serde_json::json;
+
+    #[test]
+    fn detects_settled_channel_without_failure() {
+        let channel = channel_from_value(&json!({
+            "channel_id": "0xabc",
+            "peer_pubkey": "03peer",
+            "local_balance": "0x4a817c800",
+            "state": "CHANNEL_CLOSED",
+            "settlement_tx_hash": "0xsettle"
+        }));
+
+        assert_eq!(channel.amount_ckb, Some(200));
+        assert_eq!(channel.settlement_tx_hash.as_deref(), Some("0xsettle"));
+        assert!(channel.is_closed);
+        assert!(!channel.is_failed);
     }
 }

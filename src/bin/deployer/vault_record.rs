@@ -65,6 +65,7 @@ pub(super) fn write_env(vault_address: &str, vault_out_point: &CodeOutPoint) -> 
         &format!("{}#{}", vault_out_point.tx_hash, vault_out_point.index),
     );
     env = set_env(env, "LIQUIDLANE_REQUIRE_CKB_RPC", "true");
+    env = set_env(env, "LIQUIDLANE_VAULT_SCRIPT_VERSION", "v2");
     fs::write(path, env)?;
     Ok(())
 }

@@ -25,6 +25,8 @@ pub struct DeployedScripts {
     pub lp_receipt_type_out_point: Option<String>,
     pub request_type_code_hash: Option<String>,
     pub request_type_out_point: Option<String>,
+    pub funding_intent_type_code_hash: Option<String>,
+    pub funding_intent_type_out_point: Option<String>,
     pub fee_claim_type_code_hash: Option<String>,
     pub fee_claim_type_out_point: Option<String>,
 }
@@ -78,6 +80,14 @@ impl DeployConfig {
                 ),
                 request_type_code_hash: value(&local_env, "LIQUIDLANE_REQUEST_TYPE_CODE_HASH"),
                 request_type_out_point: value(&local_env, "LIQUIDLANE_REQUEST_TYPE_OUT_POINT"),
+                funding_intent_type_code_hash: value(
+                    &local_env,
+                    "LIQUIDLANE_FUNDING_INTENT_TYPE_CODE_HASH",
+                ),
+                funding_intent_type_out_point: value(
+                    &local_env,
+                    "LIQUIDLANE_FUNDING_INTENT_TYPE_OUT_POINT",
+                ),
                 fee_claim_type_code_hash: value(&local_env, "LIQUIDLANE_FEE_CLAIM_TYPE_CODE_HASH"),
                 fee_claim_type_out_point: value(&local_env, "LIQUIDLANE_FEE_CLAIM_TYPE_OUT_POINT"),
             },

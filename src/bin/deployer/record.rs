@@ -115,6 +115,7 @@ pub fn write_env(scripts: &[ScriptArtifact], receipt: &DeployReceipt) -> Result<
             );
         }
     }
+    env = set_env(env, "LIQUIDLANE_VAULT_SCRIPT_VERSION", "v2");
     fs::write(path, env)?;
     Ok(())
 }
@@ -136,6 +137,10 @@ fn env_keys(name: &str) -> Option<(&'static str, &'static str)> {
         "liquidlane-capacity-request-type" => Some((
             "LIQUIDLANE_REQUEST_TYPE_CODE_HASH",
             "LIQUIDLANE_REQUEST_TYPE_OUT_POINT",
+        )),
+        "liquidlane-funding-intent-type" => Some((
+            "LIQUIDLANE_FUNDING_INTENT_TYPE_CODE_HASH",
+            "LIQUIDLANE_FUNDING_INTENT_TYPE_OUT_POINT",
         )),
         "liquidlane-fee-claim-type" => Some((
             "LIQUIDLANE_FEE_CLAIM_TYPE_CODE_HASH",

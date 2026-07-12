@@ -1,0 +1,83 @@
+{
+  "network": "ckb-testnet",
+  "rpc_url": "https://testnet.ckb.dev",
+  "explorer_base_url": "https://pudge.explorer.nervos.org",
+  "deployed_at": "2026-07-12T20:05:42.031367090+00:00",
+  "deployer_address": "ckt1qyqxqf7spwqfwlqtyccswl0376fagku9el5q75f2vl",
+  "deployment_tx_hash": "0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+  "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+  "scripts": [
+    {
+      "name": "liquidlane-vault-lock",
+      "size_bytes": 31208,
+      "deployment_tx_hash": "0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+      "code_cell_out_point": {
+        "tx_hash": "0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+        "index": "0x0"
+      },
+      "code_hash": "0x8e53a220c6346f1d6d390c08c5f54ff73a640e940f886a20c6ddc26618a74357",
+      "hash_type": "data1",
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4"
+    },
+    {
+      "name": "liquidlane-vault-type",
+      "size_bytes": 30720,
+      "deployment_tx_hash": "0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+      "code_cell_out_point": {
+        "tx_hash": "0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+        "index": "0x1"
+      },
+      "code_hash": "0xcd435dde45afb390499712de339f4d13f81a5d61186a065136570d4256c54ca1",
+      "hash_type": "data1",
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4"
+    },
+    {
+      "name": "liquidlane-lp-receipt-type",
+      "size_bytes": 31696,
+      "deployment_tx_hash": "0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+      "code_cell_out_point": {
+        "tx_hash": "0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+        "index": "0x2"
+      },
+      "code_hash": "0x6136759bd57001401d19369a4de524f9a19b8839e97a0fea107e308fe98b7b29",
+      "hash_type": "data1",
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4"
+    },
+    {
+      "name": "liquidlane-capacity-request-type",
+      "size_bytes": 29504,
+      "deployment_tx_hash": "0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+      "code_cell_out_point": {
+        "tx_hash": "0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+        "index": "0x3"
+      },
+      "code_hash": "0x2ecd2ec19a0be5707dbf61cd8bd758d84735beb0520a64addd9fe6a89772226d",
+      "hash_type": "data1",
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4"
+    },
+    {
+      "name": "liquidlane-funding-intent-type",
+      "size_bytes": 31176,
+      "deployment_tx_hash": "0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+      "code_cell_out_point": {
+        "tx_hash": "0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+        "index": "0x4"
+      },
+      "code_hash": "0x4c5ecdd444594253667e19b9a473e712b5c77973159d94620cd5c2a86f3d3c45",
+      "hash_type": "data1",
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4"
+    },
+    {
+      "name": "liquidlane-fee-claim-type",
+      "size_bytes": 29208,
+      "deployment_tx_hash": "0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+      "code_cell_out_point": {
+        "tx_hash": "0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4",
+        "index": "0x5"
+      },
+      "code_hash": "0xb3c57c3ec41803ea125250ffc51f30873e60fa827ef55b382b0c36ee9fcd4240",
+      "hash_type": "data1",
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xa328147c40b9efa8102b2e4675fc484f86219043d488fc7db960a5a18f27e7e4"
+    }
+  ]
+}

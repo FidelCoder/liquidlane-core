@@ -229,6 +229,8 @@ pub struct VaultConfig {
     pub cell_out_point: Option<String>,
     pub network: String,
     pub configured: bool,
+    #[serde(default = "default_script_version")]
+    pub script_version: String,
     pub scripts: VaultScripts,
 }
 
@@ -242,6 +244,14 @@ pub struct VaultScripts {
     pub lp_receipt_type_out_point: Option<String>,
     pub request_type_code_hash: Option<String>,
     pub request_type_out_point: Option<String>,
+    #[serde(default)]
+    pub funding_intent_type_code_hash: Option<String>,
+    #[serde(default)]
+    pub funding_intent_type_out_point: Option<String>,
     pub fee_claim_type_code_hash: Option<String>,
     pub fee_claim_type_out_point: Option<String>,
+}
+
+fn default_script_version() -> String {
+    "v1".to_string()
 }

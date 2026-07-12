@@ -37,6 +37,26 @@ pub struct AttachFiberPeerRequest {
     pub public_channel: Option<bool>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+pub struct ReleaseLiquidityRequest {
+    #[serde(default)]
+    pub tx_hash: Option<String>,
+    #[serde(default)]
+    pub signed_tx: Option<Value>,
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct SettleLiquidityRequest {
+    #[serde(default)]
+    pub tx_hash: Option<String>,
+    #[serde(default)]
+    pub signed_tx: Option<Value>,
+    #[serde(default)]
+    pub channel_id: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct LiquidityQuote {
     pub asset: String,
@@ -126,6 +146,7 @@ pub enum LiquidityStatus {
     Failed,
     Expired,
     Released,
+    Settled,
 }
 
 fn default_public_channel() -> bool {

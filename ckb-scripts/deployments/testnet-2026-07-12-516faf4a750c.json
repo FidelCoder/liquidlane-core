@@ -1,0 +1,23 @@
+{
+  "network": "ckb-testnet",
+  "rpc_url": "https://testnet.ckb.dev",
+  "explorer_base_url": "https://pudge.explorer.nervos.org",
+  "deployed_at": "2026-07-12T19:51:50.335903787+00:00",
+  "deployer_address": "ckt1qyqxqf7spwqfwlqtyccswl0376fagku9el5q75f2vl",
+  "deployment_tx_hash": "0x516faf4a750c0757746ed14be565ee904454cd86c5e078c5840d72200b8ce6ef",
+  "explorer_url": "https://pudge.explorer.nervos.org/transaction/0x516faf4a750c0757746ed14be565ee904454cd86c5e078c5840d72200b8ce6ef",
+  "scripts": [
+    {
+      "name": "liquidlane-funding-intent-type",
+      "size_bytes": 31176,
+      "deployment_tx_hash": "0x516faf4a750c0757746ed14be565ee904454cd86c5e078c5840d72200b8ce6ef",
+      "code_cell_out_point": {
+        "tx_hash": "0x516faf4a750c0757746ed14be565ee904454cd86c5e078c5840d72200b8ce6ef",
+        "index": "0x0"
+      },
+      "code_hash": "0x4c5ecdd444594253667e19b9a473e712b5c77973159d94620cd5c2a86f3d3c45",
+      "hash_type": "data1",
+      "explorer_url": "https://pudge.explorer.nervos.org/transaction/0x516faf4a750c0757746ed14be565ee904454cd86c5e078c5840d72200b8ce6ef"
+    }
+  ]
+}

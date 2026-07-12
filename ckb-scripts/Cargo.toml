@@ -6,6 +6,7 @@ members = [
   "vault-type",
   "lp-receipt-type",
   "capacity-request-type",
+  "funding-intent-type",
   "fee-claim-type",
   "v2-policy",
 ]

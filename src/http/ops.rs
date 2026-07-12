@@ -7,7 +7,11 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use super::{ApiError, AppState, AuthedUser};
-use crate::domain::{ExternalFundingIntent, ExternalFundingReadiness, User, UserRole};
+use crate::domain::{
+    ExternalFundingIntent, ExternalFundingReadiness, ExternalFundingSubmitRequest,
+    ExternalFundingWatcherState, LiquidityRequest, ReleaseLiquidityRequest, SettleLiquidityRequest,
+    User, UserRole,
+};
 use crate::store::{CoreStateExport, ExecutorHealth};
 
 #[derive(Serialize)]
@@ -96,6 +100,9 @@ pub(super) async fn executor_health(
 pub(super) struct ExternalFundingResponse {
     readiness: ExternalFundingReadiness,
     intents: Vec<ExternalFundingIntent>,
+    release_candidates: Vec<LiquidityRequest>,
+    stuck_requests: Vec<LiquidityRequest>,
+    watcher: ExternalFundingWatcherState,
 }
 
 pub(super) async fn external_funding(
@@ -106,7 +113,73 @@ pub(super) async fn external_funding(
     Ok(Json(ExternalFundingResponse {
         readiness: state.store.external_funding_readiness().await,
         intents: state.store.external_funding_intents().await,
+        release_candidates: state.store.external_funding_release_candidates().await,
+        stuck_requests: state.store.external_funding_stuck_requests().await,
+        watcher: state.store.external_funding_watcher_state().await,
     }))
+}
+
+pub(super) async fn external_funding_preview(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+    Path(id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    require_internal_operator(&user)?;
+    Ok(Json(state.store.external_funding_preview(id).await?))
+}
+
+pub(super) async fn external_funding_plan(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+    Path(id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    require_internal_operator(&user)?;
+    Ok(Json(state.store.external_funding_plan(id).await?))
+}
+
+pub(super) async fn submit_external_funding_tx(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+    Path(id): Path<Uuid>,
+    Json(request): Json<ExternalFundingSubmitRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    require_internal_operator(&user)?;
+    Ok(Json(
+        state.store.submit_external_funding_tx(id, request).await?,
+    ))
+}
+
+pub(super) async fn retry_external_funding_request(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+    Path(id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    require_internal_operator(&user)?;
+    Ok(Json(state.store.retry_external_funding_request(id).await?))
+}
+
+pub(super) async fn release_external_funding_request(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+    Path(id): Path<Uuid>,
+    Json(request): Json<ReleaseLiquidityRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    require_internal_operator(&user)?;
+    Ok(Json(
+        state.store.release_liquidity_request(id, request).await?,
+    ))
+}
+
+pub(super) async fn settle_external_funding_request(
+    State(state): State<AppState>,
+    AuthedUser(user): AuthedUser,
+    Path(id): Path<Uuid>,
+    Json(request): Json<SettleLiquidityRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    require_internal_operator(&user)?;
+    Ok(Json(
+        state.store.settle_liquidity_request(id, request).await?,
+    ))
 }
 
 pub(super) async fn executor_jobs(

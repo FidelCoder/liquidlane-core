@@ -107,6 +107,7 @@ fn previous_script_out_points(config: &DeployConfig) -> Vec<String> {
         config.scripts.vault_type_out_point.as_ref(),
         config.scripts.lp_receipt_type_out_point.as_ref(),
         config.scripts.request_type_out_point.as_ref(),
+        config.scripts.funding_intent_type_out_point.as_ref(),
         config.scripts.fee_claim_type_out_point.as_ref(),
     ]
     .into_iter()

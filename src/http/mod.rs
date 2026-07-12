@@ -40,6 +40,30 @@ pub fn router(state: AppState) -> Router {
             get(ops::external_funding),
         )
         .route(
+            "/internal/executor/external-funding/{id}/preview",
+            get(ops::external_funding_preview),
+        )
+        .route(
+            "/internal/executor/external-funding/{id}/plan",
+            get(ops::external_funding_plan),
+        )
+        .route(
+            "/internal/executor/external-funding/{id}/submit",
+            post(ops::submit_external_funding_tx),
+        )
+        .route(
+            "/internal/executor/external-funding/{id}/retry",
+            post(ops::retry_external_funding_request),
+        )
+        .route(
+            "/internal/executor/external-funding/{id}/release",
+            post(ops::release_external_funding_request),
+        )
+        .route(
+            "/internal/executor/external-funding/{id}/settle",
+            post(ops::settle_external_funding_request),
+        )
+        .route(
             "/internal/executor/jobs/{id}/retry",
             post(ops::retry_executor_job),
         )

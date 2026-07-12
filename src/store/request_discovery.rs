@@ -207,6 +207,7 @@ fn status_from_chain(status: u8) -> LiquidityStatus {
         4 => LiquidityStatus::Failed,
         5 => LiquidityStatus::Expired,
         6 => LiquidityStatus::Released,
+        7 => LiquidityStatus::Settled,
         _ => LiquidityStatus::Requested,
     }
 }

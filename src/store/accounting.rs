@@ -132,6 +132,33 @@ pub(super) fn release_positions(
     Ok(())
 }
 
+pub(super) fn settle_positions(
+    positions: &mut [LpPosition],
+    asset: &str,
+    mut amount: u64,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<()> {
+    for position in active_positions_mut(positions, asset) {
+        if amount == 0 {
+            break;
+        }
+        let settled = position.deployed_amount.min(amount);
+        if settled == 0 {
+            continue;
+        }
+        position.deployed_amount -= settled;
+        position.available_amount += settled;
+        position.updated_at = now;
+        amount -= settled;
+    }
+    if amount > 0 {
+        return Err(anyhow!(
+            "deployed liquidity was already settled or released"
+        ));
+    }
+    Ok(())
+}
+
 fn active_positions_mut<'a>(
     positions: &'a mut [LpPosition],
     asset: &'a str,

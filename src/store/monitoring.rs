@@ -21,6 +21,7 @@ pub struct CoreStateExport {
     pub open_channels: usize,
     pub failed_requests: usize,
     pub released_requests: usize,
+    pub settled_requests: usize,
     pub executor_jobs: usize,
     pub open_executor_jobs: usize,
     pub activity_events: usize,
@@ -100,6 +101,11 @@ impl AppStore {
                 )
             })
             .count();
+        let settled_requests = state
+            .liquidity_requests
+            .iter()
+            .filter(|request| request.status == LiquidityStatus::Settled)
+            .count();
         let open_executor_jobs = state
             .executor_jobs
             .iter()
@@ -131,6 +137,7 @@ impl AppStore {
             open_channels,
             failed_requests,
             released_requests,
+            settled_requests,
             executor_jobs: state.executor_jobs.len(),
             open_executor_jobs,
             activity_events: state.events.len(),
