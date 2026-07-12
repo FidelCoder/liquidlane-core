@@ -51,6 +51,60 @@ pub(super) fn reserve_positions_with_fee(
     Ok(())
 }
 
+pub(super) fn deploy_positions(
+    positions: &mut [LpPosition],
+    asset: &str,
+    mut amount: u64,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<()> {
+    for position in active_positions_mut(positions, asset) {
+        if amount == 0 {
+            break;
+        }
+        let deployed = position.reserved_amount.min(amount);
+        if deployed == 0 {
+            continue;
+        }
+        position.reserved_amount -= deployed;
+        position.deployed_amount += deployed;
+        position.updated_at = now;
+        amount -= deployed;
+    }
+    if amount > 0 {
+        return Err(anyhow!(
+            "reserved liquidity was already released or deployed"
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn undeploy_positions(
+    positions: &mut [LpPosition],
+    asset: &str,
+    mut amount: u64,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<()> {
+    for position in active_positions_mut(positions, asset) {
+        if amount == 0 {
+            break;
+        }
+        let returned = position.deployed_amount.min(amount);
+        if returned == 0 {
+            continue;
+        }
+        position.deployed_amount -= returned;
+        position.reserved_amount += returned;
+        position.updated_at = now;
+        amount -= returned;
+    }
+    if amount > 0 {
+        return Err(anyhow!(
+            "deployed liquidity was already returned or withdrawn"
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn release_positions(
     positions: &mut [LpPosition],
     asset: &str,

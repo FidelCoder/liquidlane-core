@@ -52,3 +52,16 @@ Needed work:
 ## Product Rule
 
 Public users never operate nodes manually. LPs supply, merchants reserve, and LiquidLane runs the executor infrastructure.
+
+
+## LiquidLane Integration Rule
+
+Normal Fiber `open_channel` is node-wallet funded and is diagnostic only.
+
+The product path must call `open_channel_with_external_funding`, then submit a signed funding transaction built from LiquidLane vault liquidity. If that transaction builder is not available, Core must return a retryable failure and preserve the on-chain reserve.
+
+## Implementation Status
+
+- Fiber RPC client methods are being wired in Core.
+- Vault V2 policy models external funding as reserved -> deployed.
+- The full CKB transaction builder and script deployment are the remaining critical path before claiming true vault-funded Fiber execution.

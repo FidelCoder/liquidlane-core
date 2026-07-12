@@ -41,3 +41,24 @@ impl ExecutorJobStatus {
         )
     }
 }
+
+pub const FUNDING_MODE_VAULT_EXTERNAL: &str = "vault_external";
+pub const FUNDING_MODE_NODE_WALLET_DIAGNOSTIC: &str = "node_wallet_diagnostic";
+pub const FUNDING_MODE_LEGACY_MANAGED_NODE_BETA: &str = "managed_node_beta";
+
+pub fn normalize_executor_funding_mode(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        FUNDING_MODE_NODE_WALLET_DIAGNOSTIC | FUNDING_MODE_LEGACY_MANAGED_NODE_BETA => {
+            FUNDING_MODE_NODE_WALLET_DIAGNOSTIC.to_string()
+        }
+        _ => FUNDING_MODE_VAULT_EXTERNAL.to_string(),
+    }
+}
+
+pub fn is_vault_external_funding_mode(value: &str) -> bool {
+    normalize_executor_funding_mode(value) == FUNDING_MODE_VAULT_EXTERNAL
+}
+
+pub fn is_node_wallet_diagnostic_mode(value: &str) -> bool {
+    normalize_executor_funding_mode(value) == FUNDING_MODE_NODE_WALLET_DIAGNOSTIC
+}

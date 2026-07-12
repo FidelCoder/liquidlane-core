@@ -12,7 +12,7 @@ mod tests {
     };
 
     #[test]
-    fn fiber_handoff_does_not_reallocate_lp_vault_liquidity() {
+    fn fiber_channel_open_moves_reserved_liquidity_to_deployed() {
         let now = Utc::now();
         let request_id = Uuid::new_v4();
         let lp_id = Uuid::new_v4();
@@ -87,8 +87,8 @@ mod tests {
 
         let position = &state.lp_positions[0];
         assert_eq!(position.available_amount, 300);
-        assert_eq!(position.reserved_amount, 200);
-        assert_eq!(position.deployed_amount, 0);
+        assert_eq!(position.reserved_amount, 0);
+        assert_eq!(position.deployed_amount, 200);
         assert_eq!(position.fees_earned, 0);
         assert_eq!(
             state.capacity_reservations[0].status,

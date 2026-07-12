@@ -88,6 +88,15 @@ fn spawn_executor_worker(store: Arc<AppStore>, poll_interval_ms: u64) {
         let mut ticker = tokio::time::interval(Duration::from_millis(poll_interval_ms.max(1_000)));
         loop {
             ticker.tick().await;
+            match store.sync_fiber_channels().await {
+                Ok(changed) if changed > 0 => {
+                    tracing::info!(changed, "synced Fiber channel states from watcher");
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    tracing::warn!(error = %error, "failed to sync Fiber channel status");
+                }
+            }
             match store.release_expired_requests().await {
                 Ok(released) if released > 0 => {
                     tracing::info!(released, "released expired LiquidLane reservations");

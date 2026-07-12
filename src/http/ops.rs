@@ -24,6 +24,10 @@ pub(super) struct HealthResponse {
     executor_funding_mode: String,
     executor_queued_requests: usize,
     executor_pending_handoffs: usize,
+    external_funding_supported: bool,
+    external_funding_ready: bool,
+    vault_external_required: bool,
+    node_wallet_diagnostic: bool,
 }
 
 pub(super) async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
@@ -44,6 +48,10 @@ pub(super) async fn health(State(state): State<AppState>) -> Json<HealthResponse
         executor_funding_mode: executor.funding_mode,
         executor_queued_requests: executor.queued_requests,
         executor_pending_handoffs: executor.pending_handoffs,
+        external_funding_supported: executor.external_funding_supported,
+        external_funding_ready: executor.external_funding_ready,
+        vault_external_required: executor.vault_external_required,
+        node_wallet_diagnostic: executor.node_wallet_diagnostic,
     })
 }
 

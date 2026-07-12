@@ -9,6 +9,7 @@ mod chain_settlement;
 mod chain_types;
 mod dashboard;
 mod executor;
+mod executor_channel;
 mod liquidity;
 mod liquidity_deploy;
 #[cfg(test)]
@@ -42,9 +43,9 @@ use vault_chain_sync::LiveVaultAccounting;
 use crate::{
     ckb_rpc::{CkbRpcClient, explicit_transaction_hash},
     domain::{
-        ActivityEvent, AuthChallenge, CapacityReservation, Deposit, ExecutorJob, FeeClaim,
-        LiquidityRequest, LpPosition, RequestIntent, SupplyIntent, User, VaultConfig,
-        WithdrawalIntent,
+        ActivityEvent, AuthChallenge, CapacityReservation, Deposit, ExecutorJob,
+        FUNDING_MODE_VAULT_EXTERNAL, FeeClaim, LiquidityRequest, LpPosition, RequestIntent,
+        SupplyIntent, User, VaultConfig, WithdrawalIntent, normalize_executor_funding_mode,
     },
     fiber::FiberClient,
 };
@@ -118,7 +119,7 @@ impl AppStore {
             executor_enabled,
             executor_poll_interval_ms,
             executor_max_retries,
-            executor_funding_mode,
+            executor_funding_mode: normalize_executor_funding_mode(&executor_funding_mode),
             inner: RwLock::new(state),
         })
     }
@@ -133,7 +134,7 @@ impl AppStore {
             executor_enabled: false,
             executor_poll_interval_ms: 5_000,
             executor_max_retries: 3,
-            executor_funding_mode: "managed_node_beta".to_string(),
+            executor_funding_mode: FUNDING_MODE_VAULT_EXTERNAL.to_string(),
             vault: VaultConfig {
                 asset: "CKB".to_string(),
                 address: Some("ckt1qpkp7qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq".to_string()),

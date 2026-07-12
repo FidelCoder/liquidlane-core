@@ -7,6 +7,13 @@ const SHANNONS_PER_CKB: u128 = 100_000_000;
 
 use crate::domain::{CkbScript, LiquidityRequest};
 
+mod channel;
+mod external;
+pub use channel::FiberChannel;
+use channel::channel_from_value;
+#[allow(unused_imports)]
+pub use external::{FiberExternalFundingOutcome, FiberExternalFundingParams};
+
 #[derive(Clone)]
 pub struct FiberClient {
     rpc_url: Option<String>,
@@ -51,6 +58,38 @@ impl FiberClient {
 
     pub fn is_configured(&self) -> bool {
         self.rpc_url.is_some()
+    }
+
+    pub async fn list_channels(&self) -> Result<Vec<FiberChannel>> {
+        let rpc_url = self.rpc_url()?;
+        let mut channels = self
+            .list_channels_with_params(rpc_url, json!({ "include_closed": false }))
+            .await?;
+        channels.extend(
+            self.list_channels_with_params(rpc_url, json!({ "only_pending": true }))
+                .await?,
+        );
+        Ok(channels)
+    }
+
+    async fn list_channels_with_params(
+        &self,
+        rpc_url: &str,
+        params: Value,
+    ) -> Result<Vec<FiberChannel>> {
+        let result = self
+            .rpc_call_params(
+                rpc_url,
+                "list_channels",
+                "liquidlane-list-channels",
+                json!([params]),
+            )
+            .await?;
+        Ok(result
+            .get("channels")
+            .and_then(Value::as_array)
+            .map(|items| items.iter().map(channel_from_value).collect())
+            .unwrap_or_default())
     }
 
     pub async fn open_channel(&self, request: &LiquidityRequest) -> Result<FiberOpenOutcome> {
@@ -233,16 +272,4 @@ fn script_to_value(script: &CkbScript) -> Value {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::funding_amount_hex;
-
-    #[test]
-    fn converts_ckb_funding_amount_to_hex_shannons() {
-        assert_eq!(funding_amount_hex("CKB", 499).unwrap(), "0xb9e459300");
-    }
-
-    #[test]
-    fn leaves_udt_funding_amount_in_asset_units() {
-        assert_eq!(funding_amount_hex("RUSD", 20_000_000).unwrap(), "0x1312d00");
-    }
-}
+mod tests;

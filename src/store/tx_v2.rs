@@ -4,8 +4,9 @@ use anyhow::{Result, anyhow};
 use serde::Serialize;
 
 use crate::domain::{
-    CapacityRequestV2Data, LpReceiptV2Data, VaultV2Data, VaultV2Transition,
-    validate_vault_v2_transition,
+    CapacityRequestV2Data, FiberFundingIntentV2Data, LpReceiptV2Data,
+    VaultExternalFundingTransition, VaultV2Data, VaultV2Transition,
+    validate_external_funding_transition, validate_vault_v2_transition,
 };
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
@@ -17,6 +18,7 @@ pub enum V2TxKind {
     ReleaseExpired,
     ClaimFees,
     ExecutorFunding,
+    ExternalFiberFunding,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
@@ -105,6 +107,27 @@ pub(super) fn plan_executor_funding_v2(
         delta(before.deployed, after.deployed),
         "liquidlane_executor",
         "fiber_opening",
+    ))
+}
+
+pub(super) fn plan_external_fiber_funding_v2(
+    before: VaultV2Data,
+    after: VaultV2Data,
+    request: CapacityRequestV2Data,
+    funding: FiberFundingIntentV2Data,
+) -> Result<V2TxPlan> {
+    validate_external_funding_transition(&VaultExternalFundingTransition {
+        before: before.clone(),
+        after: after.clone(),
+        request,
+        funding,
+    })
+    .map_err(|error| anyhow!(human_v2_error(&error)))?;
+    Ok(plan(
+        V2TxKind::ExternalFiberFunding,
+        delta(before.deployed, after.deployed),
+        "vault_external_funding_authority",
+        "fiber_funding_tx_required",
     ))
 }
 
@@ -208,6 +231,21 @@ mod tests {
     }
 
     #[test]
+    fn external_fiber_funding_plan_reports_vault_authority() {
+        let plan = plan_external_fiber_funding_v2(
+            vault(500, 300, 200, 0, 1),
+            vault(500, 300, 0, 200, 1),
+            request(200, CapacityRequestV2Status::Opening),
+            funding(200),
+        )
+        .unwrap();
+
+        assert_eq!(plan.kind, V2TxKind::ExternalFiberFunding);
+        assert_eq!(plan.required_signer, "vault_external_funding_authority");
+        assert_eq!(plan.expected_status, "fiber_funding_tx_required");
+    }
+
+    #[test]
     fn release_plan_rejects_non_expired_request() {
         let err = plan_release_expired_v2(
             vault(500, 300, 200, 0, 1),
@@ -234,6 +272,19 @@ mod tests {
             fee_balance,
             executor_key_hash: HASH.to_string(),
         }
+    }
+
+    fn funding(amount: u64) -> FiberFundingIntentV2Data {
+        FiberFundingIntentV2Data {
+            amount,
+            funding_lock_hash: hash(4),
+            shutdown_lock_hash: hash(5),
+            request_id_hash: hash(6),
+        }
+    }
+
+    fn hash(byte: u8) -> String {
+        format!("0x{}", format!("{byte:02x}").repeat(32))
     }
 
     fn request(amount: u64, status: CapacityRequestV2Status) -> CapacityRequestV2Data {

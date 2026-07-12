@@ -6,7 +6,7 @@ use uuid::Uuid;
 use super::{AppStore, accounting::release_positions};
 use crate::domain::{
     ActivityEvent, ExecutorJob, ExecutorJobStatus, LiquidityRequest, LiquidityStatus,
-    ReservationStatus,
+    ReservationStatus, is_node_wallet_diagnostic_mode, is_vault_external_funding_mode,
 };
 
 #[derive(Clone, Debug, Serialize)]
@@ -21,6 +21,9 @@ pub struct ExecutorHealth {
     pub failed_requests: usize,
     pub open_jobs: usize,
     pub external_funding_supported: bool,
+    pub external_funding_ready: bool,
+    pub vault_external_required: bool,
+    pub node_wallet_diagnostic: bool,
 }
 
 impl AppStore {
@@ -51,6 +54,9 @@ impl AppStore {
             .filter(|request| request.status == LiquidityStatus::Failed)
             .count();
 
+        let vault_external_required = is_vault_external_funding_mode(&self.executor_funding_mode);
+        let node_wallet_diagnostic = is_node_wallet_diagnostic_mode(&self.executor_funding_mode);
+
         ExecutorHealth {
             enabled: self.executor_enabled,
             fiber_rpc_configured: self.fiber.is_configured(),
@@ -61,7 +67,10 @@ impl AppStore {
             pending_handoffs,
             failed_requests,
             open_jobs,
-            external_funding_supported: true,
+            external_funding_supported: vault_external_required,
+            external_funding_ready: false,
+            vault_external_required,
+            node_wallet_diagnostic,
         }
     }
 

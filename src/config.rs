@@ -1,6 +1,9 @@
 use std::{env, net::SocketAddr, path::PathBuf};
 
-use crate::domain::{VaultConfig, VaultScripts, is_plausible_ckb_address};
+use crate::domain::{
+    FUNDING_MODE_VAULT_EXTERNAL, VaultConfig, VaultScripts, is_plausible_ckb_address,
+    normalize_executor_funding_mode,
+};
 
 #[derive(Clone, Debug)]
 pub struct AppConfig {
@@ -62,8 +65,11 @@ impl AppConfig {
         let executor_enabled = bool_env("LIQUIDLANE_EXECUTOR_ENABLED", environment != "test")?;
         let executor_poll_interval_ms = u64_env("LIQUIDLANE_EXECUTOR_POLL_INTERVAL_MS", 5_000)?;
         let executor_max_retries = u8_env("LIQUIDLANE_EXECUTOR_MAX_RETRIES", 3)?;
-        let executor_funding_mode = optional_env("LIQUIDLANE_EXECUTOR_FUNDING_MODE")
-            .unwrap_or_else(|| "managed_node_beta".to_string());
+        let executor_funding_mode = normalize_executor_funding_mode(
+            &optional_env("LIQUIDLANE_FIBER_FUNDING_MODE")
+                .or_else(|| optional_env("LIQUIDLANE_EXECUTOR_FUNDING_MODE"))
+                .unwrap_or_else(|| FUNDING_MODE_VAULT_EXTERNAL.to_string()),
+        );
         let cors_allowed_origin = optional_env("LIQUIDLANE_CORS_ALLOWED_ORIGIN");
         let vault = VaultConfig {
             asset: env::var("LIQUIDLANE_VAULT_ASSET")

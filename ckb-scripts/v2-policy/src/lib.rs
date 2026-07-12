@@ -28,6 +28,14 @@ pub struct RequestV2 {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FundingIntentV2 {
+    pub amount: u64,
+    pub funding_lock_hash: [u8; 32],
+    pub shutdown_lock_hash: [u8; 32],
+    pub request_id_hash: [u8; 32],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RequestStatus {
     Reserved,
     Opening,
@@ -106,6 +114,19 @@ pub fn validate_execute(before: VaultV2, after: VaultV2, request: RequestV2) -> 
     require(after.total == before.total, PolicyError::UnauthorizedValueMovement)
 }
 
+pub fn validate_external_funding(
+    before: VaultV2,
+    after: VaultV2,
+    request: RequestV2,
+    funding: FundingIntentV2,
+) -> PolicyResult {
+    validate_execute(before, after, request)?;
+    require(funding.amount == request.amount, PolicyError::BadDelta)?;
+    require(!is_zero_hash(funding.funding_lock_hash), PolicyError::BadRequest)?;
+    require(!is_zero_hash(funding.shutdown_lock_hash), PolicyError::BadRequest)?;
+    require(!is_zero_hash(funding.request_id_hash), PolicyError::BadRequest)
+}
+
 pub fn validate_release(before: VaultV2, after: VaultV2, request: RequestV2, now: u64) -> PolicyResult {
     validate_vault(before)?;
     validate_vault(after)?;
@@ -124,6 +145,10 @@ pub fn validate_claim(before: VaultV2, after: VaultV2, receipt: ReceiptV2, amoun
     require(before.fee_balance >= amount, PolicyError::InsufficientAvailable)?;
     require(receipt.earned >= receipt.claimed + amount, PolicyError::InsufficientAvailable)?;
     require(after.fee_balance == before.fee_balance - amount, PolicyError::BadDelta)
+}
+
+fn is_zero_hash(hash: [u8; 32]) -> bool {
+    hash.iter().all(|byte| *byte == 0)
 }
 
 fn require(condition: bool, error: PolicyError) -> PolicyResult {
@@ -147,6 +172,19 @@ mod tests {
     }
 
     #[test]
+    fn external_funding_requires_exact_amount() {
+        let request = RequestV2 { amount: 200, lease_fee: 2, expiry: 100, status: RequestStatus::Opening };
+        assert_eq!(
+            validate_external_funding(vault(500, 300, 200, 0, 2), vault(500, 300, 0, 200, 2), request, funding(199)),
+            Err(PolicyError::BadDelta)
+        );
+        assert_eq!(
+            validate_external_funding(vault(500, 300, 200, 0, 2), vault(500, 300, 0, 200, 2), request, funding(200)),
+            Ok(())
+        );
+    }
+
+    #[test]
     fn release_requires_expiry() {
         let request = RequestV2 { amount: 200, lease_fee: 2, expiry: 100, status: RequestStatus::Expired };
         assert_eq!(validate_release(vault(500, 300, 200, 0, 2), vault(500, 500, 0, 0, 2), request, 99), Err(PolicyError::NotExpired));
@@ -154,5 +192,14 @@ mod tests {
 
     fn vault(total: u64, available: u64, reserved: u64, deployed: u64, fee_balance: u64) -> VaultV2 {
         VaultV2 { total, available, reserved, deployed, fee_balance }
+    }
+
+    fn funding(amount: u64) -> FundingIntentV2 {
+        FundingIntentV2 {
+            amount,
+            funding_lock_hash: [1; 32],
+            shutdown_lock_hash: [2; 32],
+            request_id_hash: [3; 32],
+        }
     }
 }

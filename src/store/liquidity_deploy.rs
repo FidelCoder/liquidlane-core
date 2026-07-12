@@ -2,10 +2,14 @@ use anyhow::{Result, anyhow};
 use chrono::Utc;
 use uuid::Uuid;
 
-use super::{AppStore, validation::require_role};
+use super::{
+    AppStore,
+    accounting::{deploy_positions, undeploy_positions},
+    validation::require_role,
+};
 use crate::domain::{
     ActivityEvent, ExecutorJobStatus, LiquidityRequest, LiquidityStatus, ReservationStatus, User,
-    UserRole,
+    UserRole, is_vault_external_funding_mode,
 };
 
 impl AppStore {
@@ -98,7 +102,11 @@ impl AppStore {
                 .mark_executor_job(id, ExecutorJobStatus::Preparing, None, None)
                 .await;
         }
-        let outcome = self.fiber.open_channel(&request).await;
+        let outcome = if is_vault_external_funding_mode(&self.executor_funding_mode) {
+            Err(anyhow!(vault_external_not_ready_message()))
+        } else {
+            self.fiber.open_channel(&request).await
+        };
         let mut state = self.inner.write().await;
         let request = state
             .liquidity_requests
@@ -144,10 +152,8 @@ impl AppStore {
                 request.status = LiquidityStatus::Failed;
                 let message = error.to_string();
                 request.fiber_error = Some(message.clone());
-                request.fiber_note = Some(
-                    "LiquidLane kept the reserve visible so the handoff can be repaired."
-                        .to_string(),
-                );
+                request.fiber_note =
+                    Some(fiber_failure_note(&self.executor_funding_mode).to_string());
                 request.updated_at = now;
                 job_status = ExecutorJobStatus::RetryableFailed;
                 job_error = Some(message);
@@ -247,10 +253,30 @@ pub(super) fn update_reservation_and_positions(
                 }
             }
             LiquidityStatus::ChannelOpen => {
+                if reservation.status != ReservationStatus::Deployed {
+                    if let Err(error) = deploy_positions(
+                        &mut state.lp_positions,
+                        &updated.asset,
+                        updated.amount,
+                        now,
+                    ) {
+                        tracing::warn!(request_id = %updated.id, error = %error, "failed to mark reserved LP liquidity as deployed");
+                    }
+                }
                 reservation.status = ReservationStatus::Deployed;
             }
             LiquidityStatus::Failed => {
-                if reservation.status == ReservationStatus::Released {
+                if reservation.status == ReservationStatus::Deployed {
+                    if let Err(error) = undeploy_positions(
+                        &mut state.lp_positions,
+                        &updated.asset,
+                        updated.amount,
+                        now,
+                    ) {
+                        tracing::warn!(request_id = %updated.id, error = %error, "failed to return deployed LP liquidity to reserved");
+                    }
+                    reservation.status = ReservationStatus::Reserved;
+                } else if reservation.status == ReservationStatus::Released {
                     reservation.status = ReservationStatus::Failed;
                 }
             }
@@ -260,4 +286,15 @@ pub(super) fn update_reservation_and_positions(
             LiquidityStatus::Requested => {}
         }
     }
+}
+
+fn vault_external_not_ready_message() -> &'static str {
+    "Vault-funded Fiber external funding is selected. Core will not use node-wallet liquidity for merchant capacity. The v2 vault funding transaction builder is not complete/configured yet, so no Fiber funding transaction was submitted. The CKB reserve remains on-chain and repairable."
+}
+
+fn fiber_failure_note(funding_mode: &str) -> &'static str {
+    if is_vault_external_funding_mode(funding_mode) {
+        return "The merchant reserve is confirmed on-chain, but vault-funded Fiber execution is waiting for the external funding transaction builder.";
+    }
+    "LiquidLane kept the reserve visible so the diagnostic handoff can be repaired."
 }
