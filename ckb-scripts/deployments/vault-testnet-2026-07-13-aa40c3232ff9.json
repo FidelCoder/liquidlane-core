@@ -1,0 +1,14 @@
+{
+  "network": "ckb-testnet",
+  "deployed_at": "2026-07-13T05:29:46.556846121+00:00",
+  "deployer_address": "ckt1qyqxqf7spwqfwlqtyccswl0376fagku9el5q75f2vl",
+  "vault_address": "ckt1qqlh00rsw509klehscl6nrglnvsh6m69765ve0cdtznxjdmr9h9c2qjkg67zcsv3rnhkmqqpfp7p8x7hglmkq6hfm56s4gma8zvlfp9xd3csexlpk32wp07v542knpx897let0myljq2x8ldqrcmf8e42jv5xcfkwkda2uqpgqw3jd56fhjjf7dpnwyrn6t6pl4pql3s3l5ck7ef9mxjasv6p0jhqldlv8xch46cmprnt04s2g9xftwanln239mjyfk5chkd63z9jsjnvelpnwdyw0n39dw809e3t8v5vgxdts4gdu7nc3dnc47ra3qcq04py5jsllz37vy88es04qn774dns2cvxmhfln2zgqm26tzj",
+  "vault_cell_out_point": {
+    "tx_hash": "0xaa40c3232ff92247a4edffd7e166e2691020b8bf2688cef67f6efc87bbce8f36",
+    "index": "0x0"
+  },
+  "vault_lock_script_hash": "0x0f7c0571b28f00fb0b17e27842d9881f772f74a598dbd9e63f0b55361bc9a469",
+  "vault_type_script_hash": "0x710c9be1b454e0bfcca5556984c72fbf95bf64fc80a31fed00f1b49f35549943",
+  "deployment_tx_hash": "0xaa40c3232ff92247a4edffd7e166e2691020b8bf2688cef67f6efc87bbce8f36",
+  "explorer_url": "https://pudge.explorer.nervos.org/transaction/0xaa40c3232ff92247a4edffd7e166e2691020b8bf2688cef67f6efc87bbce8f36"
+}

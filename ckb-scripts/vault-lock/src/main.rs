@@ -19,14 +19,16 @@ const ADMIN_OFFSET: usize = 0;
 const VAULT_TYPE_OFFSET: usize = HASH_SIZE;
 const LP_RECEIPT_OFFSET: usize = HASH_SIZE * 2;
 const REQUEST_OFFSET: usize = HASH_SIZE * 3;
-const FEE_CLAIM_OFFSET: usize = HASH_SIZE * 4;
-const ARGS_LEN: usize = HASH_SIZE * 5;
+const FUNDING_INTENT_OFFSET: usize = HASH_SIZE * 4;
+const FEE_CLAIM_OFFSET: usize = HASH_SIZE * 5;
+const ARGS_LEN: usize = HASH_SIZE * 6;
 
 struct Args {
     admin_lock: Hash,
     vault_type: Hash,
     lp_receipt_type: Hash,
     request_type: Hash,
+    funding_intent_type: Hash,
     fee_claim_type: Hash,
 }
 
@@ -54,6 +56,7 @@ impl Args {
             vault_type: read_hash(&bytes, VAULT_TYPE_OFFSET)?,
             lp_receipt_type: read_hash(&bytes, LP_RECEIPT_OFFSET)?,
             request_type: read_hash(&bytes, REQUEST_OFFSET)?,
+            funding_intent_type: read_hash(&bytes, FUNDING_INTENT_OFFSET)?,
             fee_claim_type: read_hash(&bytes, FEE_CLAIM_OFFSET)?,
         })
     }
@@ -65,6 +68,7 @@ fn require_authorized_spend(args: &Args) -> ScriptResult<()> {
     }
     let service_path = has_input_or_output_type_code_hash(&args.lp_receipt_type)
         || has_input_or_output_type_code_hash(&args.request_type)
+        || has_input_or_output_type_code_hash(&args.funding_intent_type)
         || has_input_or_output_type_code_hash(&args.fee_claim_type);
     if service_path && has_input_or_output_type_hash(&args.vault_type) {
         return Ok(());

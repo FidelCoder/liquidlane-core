@@ -12,6 +12,10 @@ mod executor;
 mod executor_channel;
 #[cfg(test)]
 mod executor_channel_tests;
+mod fiber_funding_builder;
+mod fiber_funding_cells;
+mod fiber_funding_hex;
+mod fiber_funding_tx;
 mod funding_intent;
 #[cfg(test)]
 mod funding_intent_tests;
@@ -23,6 +27,7 @@ mod liquidity;
 mod liquidity_deploy;
 #[cfg(test)]
 mod liquidity_deploy_tests;
+mod liquidity_funding;
 mod liquidity_lookup;
 mod liquidity_peer;
 mod liquidity_repair;
@@ -57,7 +62,7 @@ use crate::{
     ckb_rpc::{CkbRpcClient, explicit_transaction_hash},
     domain::{
         ActivityEvent, AuthChallenge, CapacityReservation, Deposit, ExecutorJob,
-        ExternalFundingIntent, FUNDING_MODE_VAULT_EXTERNAL, FeeClaim, LiquidityRequest, LpPosition,
+        ExternalFundingIntent, FeeClaim, LiquidityRequest, LpPosition,
         RequestIntent, SupplyIntent, User, VaultConfig, WithdrawalIntent,
         normalize_executor_funding_mode,
     },
@@ -156,7 +161,7 @@ impl AppStore {
             executor_enabled: false,
             executor_poll_interval_ms: 5_000,
             executor_max_retries: 3,
-            executor_funding_mode: FUNDING_MODE_VAULT_EXTERNAL.to_string(),
+            executor_funding_mode: crate::domain::FUNDING_MODE_VAULT_EXTERNAL.to_string(),
             vault_funding_builder_enabled: false,
             vault_funding_signer_enabled: false,
             vault: VaultConfig {
@@ -168,6 +173,9 @@ impl AppStore {
                 ),
                 network: "testnet".to_string(),
                 configured: true,
+                executor_address: Some(
+                    "ckt1qpkp7qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq".to_string(),
+                ),
                 script_version: "v1".to_string(),
                 scripts: crate::domain::VaultScripts {
                     vault_lock_code_hash: None,

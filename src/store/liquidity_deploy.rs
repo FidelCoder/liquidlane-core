@@ -103,20 +103,9 @@ impl AppStore {
                 .await;
         }
         if is_vault_external_funding_mode(&self.executor_funding_mode) {
-            let updated = self
-                .prepare_external_funding_intent(&request, actor_id, executor)
-                .await?;
-            if executor {
-                let _ = self
-                    .mark_executor_job(
-                        id,
-                        ExecutorJobStatus::AwaitingVaultFunding,
-                        updated.fiber_error.clone(),
-                        updated.fiber_temporary_channel_id.clone(),
-                    )
-                    .await;
-            }
-            return Ok(updated);
+            return self
+                .execute_vault_funded_handoff(&request, actor_id, executor)
+                .await;
         }
         let outcome = self.fiber.open_channel(&request).await;
         let mut state = self.inner.write().await;

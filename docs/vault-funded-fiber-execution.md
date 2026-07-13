@@ -3,58 +3,50 @@
 LiquidLane's product flow is LP-vault funded capacity:
 
 1. LPs supply CKB into the LiquidLane vault.
-2. Merchants reserve receive capacity against the vault.
+2. Merchants reserve receive capacity against live vault liquidity and pay the lease fee in the reserve transaction.
 3. The vault marks the requested amount as reserved.
-4. LiquidLane negotiates Fiber external funding.
-5. A CKB funding transaction moves the reserved vault liquidity into the Fiber funding lock.
-6. Fiber accepts the signed funding transaction and reports an active channel.
-7. Vault accounting moves from reserved to deployed.
+4. Core calls the managed Fiber node to open the channel.
+5. Fiber invokes `FIBER_FUNDING_TX_SHELL_BUILDER`.
+6. The shell builder posts Fiber's funding payload to Core at `/internal/fiber/funding-builder`.
+7. Core builds a CKB transaction that spends the reserved vault cell into Fiber's funding lock, marks the request deployed, and creates a funding-intent proof cell.
+8. Fiber signs the executor lock group, broadcasts the funding transaction, then reports channel state.
+9. Core's watcher moves the request from funding submitted/pending to channel open only when Fiber reports an active channel.
 
-## Current v1 Reality
+## Funding Source
 
-The deployed v1 flow can prove supply, withdrawal, and merchant reservation on CKB testnet.
+The large channel amount comes from LP vault liquidity. The managed Fiber node wallet is only used for executor signing, funding-intent cell capacity, and transaction fees. It must not be treated as merchant liquidity.
 
-It must not be represented as complete vault-funded Fiber execution because the current executor path historically used Fiber's normal `open_channel` RPC. Normal `open_channel` funds the channel from the Fiber node wallet.
-
-That node-wallet path is now diagnostic only.
-
-## Correct Executor Mode
-
-Product mode is:
+## Required Mode
 
 ```txt
 LIQUIDLANE_FIBER_FUNDING_MODE=vault_external
+LIQUIDLANE_VAULT_FUNDING_BUILDER_ENABLED=true
+LIQUIDLANE_VAULT_FUNDING_SIGNER_ENABLED=true
 ```
 
-Diagnostic mode is:
+Fiber node env must include either:
 
 ```txt
-LIQUIDLANE_FIBER_FUNDING_MODE=node_wallet_diagnostic
+LIQUIDLANE_CORE_FUNDING_BUILDER_URL=https://<core-host>/internal/fiber/funding-builder
 ```
 
-Legacy `managed_node_beta` is normalized to `node_wallet_diagnostic`.
+or a custom:
 
-## External Funding Requirements
-
-Core must use Fiber's external funding flow:
-
-- `open_channel_with_external_funding`
-- build a LiquidLane vault-funded CKB transaction
-- `submit_signed_funding_tx`
-- watch CKB and Fiber channel state
-
-The funding transaction must spend only reserved vault liquidity and must create the Fiber funding-lock output expected by the negotiated channel.
+```txt
+FIBER_FUNDING_TX_SHELL_BUILDER=curl -fsS -H content-type:application/json --data-binary @- https://<core-host>/internal/fiber/funding-builder
+```
 
 ## Script Requirements
 
-The vault scripts must enforce:
+The funding transaction is valid only when the scripts can prove:
 
-- merchant request amount equals external funding amount
-- reserved liquidity moves to deployed only for the matching request
-- LPs cannot withdraw reserved/deployed liquidity
-- executor cannot redirect funds to an arbitrary lock
-- failed funding is retryable or releasable by policy
+- request amount equals Fiber local funding amount
+- vault reserved decreases by the request amount
+- vault deployed increases by the same amount
+- vault physical capacity decreases only into the negotiated Fiber funding lock
+- request cell moves to deployed under executor/vault authority
+- funding-intent proof cell exists for the same funding lock and request
 
-## Beta Safety Rule
+## Safety Rule
 
-If `vault_external` mode is selected and the external funding transaction builder is not ready, Core must fail the handoff safely with a clear message. It must not silently fall back to node-wallet liquidity.
+If the builder URL or v2 script values are missing, Core keeps the request repairable and does not fall back to node-wallet liquidity.

@@ -229,6 +229,8 @@ pub struct VaultConfig {
     pub cell_out_point: Option<String>,
     pub network: String,
     pub configured: bool,
+    #[serde(default)]
+    pub executor_address: Option<String>,
     #[serde(default = "default_script_version")]
     pub script_version: String,
     pub scripts: VaultScripts,

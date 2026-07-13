@@ -100,6 +100,7 @@ struct RequiredScripts {
     vault_type_out_point: String,
     lp_receipt_type_code_hash: String,
     request_type_code_hash: String,
+    funding_intent_type_code_hash: String,
     fee_claim_type_code_hash: String,
 }
 
@@ -137,6 +138,10 @@ impl RequiredScripts {
                 &scripts.request_type_code_hash,
                 "LIQUIDLANE_REQUEST_TYPE_CODE_HASH",
             )?,
+            funding_intent_type_code_hash: require(
+                &scripts.funding_intent_type_code_hash,
+                "LIQUIDLANE_FUNDING_INTENT_TYPE_CODE_HASH",
+            )?,
             fee_claim_type_code_hash: require(
                 &scripts.fee_claim_type_code_hash,
                 "LIQUIDLANE_FEE_CLAIM_TYPE_CODE_HASH",
@@ -150,19 +155,23 @@ fn build_vault_scripts(
     admin_lock: &Script,
 ) -> Result<BuiltVaultScripts> {
     let admin_lock_hash = admin_lock.calc_script_hash();
-    let mut vault_type_args = Vec::with_capacity(128);
+    let mut vault_type_args = Vec::with_capacity(160);
     vault_type_args.extend_from_slice(admin_lock_hash.as_slice());
     vault_type_args.extend_from_slice(hash_bytes(&scripts.lp_receipt_type_code_hash)?.as_bytes());
     vault_type_args.extend_from_slice(hash_bytes(&scripts.request_type_code_hash)?.as_bytes());
+    vault_type_args
+        .extend_from_slice(hash_bytes(&scripts.funding_intent_type_code_hash)?.as_bytes());
     vault_type_args.extend_from_slice(hash_bytes(&scripts.fee_claim_type_code_hash)?.as_bytes());
     let vault_type = data1_script(&scripts.vault_type_code_hash, vault_type_args)?;
     let vault_type_hash = vault_type.calc_script_hash();
 
-    let mut vault_lock_args = Vec::with_capacity(160);
+    let mut vault_lock_args = Vec::with_capacity(192);
     vault_lock_args.extend_from_slice(admin_lock_hash.as_slice());
     vault_lock_args.extend_from_slice(vault_type_hash.as_slice());
     vault_lock_args.extend_from_slice(hash_bytes(&scripts.lp_receipt_type_code_hash)?.as_bytes());
     vault_lock_args.extend_from_slice(hash_bytes(&scripts.request_type_code_hash)?.as_bytes());
+    vault_lock_args
+        .extend_from_slice(hash_bytes(&scripts.funding_intent_type_code_hash)?.as_bytes());
     vault_lock_args.extend_from_slice(hash_bytes(&scripts.fee_claim_type_code_hash)?.as_bytes());
     let vault_lock = data1_script(&scripts.vault_lock_code_hash, vault_lock_args)?;
 

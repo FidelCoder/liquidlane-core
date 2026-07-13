@@ -57,6 +57,10 @@ impl AppConfig {
         let vault_address = optional_env("LIQUIDLANE_VAULT_CKB_ADDRESS")
             .map(validate_vault_address)
             .transpose()?;
+        let executor_address = optional_env("LIQUIDLANE_EXECUTOR_CKB_ADDRESS")
+            .or_else(|| optional_env("CKB_DEPLOYER_ADDRESS"))
+            .map(validate_executor_address)
+            .transpose()?;
         let vault_cell_out_point = optional_env("LIQUIDLANE_VAULT_CELL_OUT_POINT")
             .map(validate_out_point)
             .transpose()?;
@@ -84,6 +88,7 @@ impl AppConfig {
                 .to_uppercase(),
             configured: vault_address.is_some() && vault_cell_out_point.is_some(),
             address: vault_address,
+            executor_address,
             cell_out_point: vault_cell_out_point,
             network: ckb_network,
             script_version: optional_env("LIQUIDLANE_VAULT_SCRIPT_VERSION")
@@ -158,13 +163,18 @@ fn is_testnet_network(network: &str) -> bool {
 }
 
 fn validate_vault_address(address: String) -> anyhow::Result<String> {
+    validate_testnet_address(address, "LIQUIDLANE_VAULT_CKB_ADDRESS")
+}
+
+fn validate_executor_address(address: String) -> anyhow::Result<String> {
+    validate_testnet_address(address, "LIQUIDLANE_EXECUTOR_CKB_ADDRESS")
+}
+
+fn validate_testnet_address(address: String, key: &str) -> anyhow::Result<String> {
     if address.trim().starts_with("ckt1") && is_plausible_ckb_address(&address) {
         return Ok(address);
     }
-
-    anyhow::bail!(
-        "LIQUIDLANE_VAULT_CKB_ADDRESS must be a real CKB testnet address from a wallet or vault script, not a placeholder"
-    )
+    anyhow::bail!("{key} must be a real CKB testnet address, not a placeholder")
 }
 
 fn bool_env(key: &str, default: bool) -> anyhow::Result<bool> {

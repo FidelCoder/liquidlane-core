@@ -64,6 +64,10 @@ pub fn router(state: AppState) -> Router {
             post(ops::settle_external_funding_request),
         )
         .route(
+            "/internal/fiber/funding-builder",
+            post(ops::fiber_funding_builder),
+        )
+        .route(
             "/internal/executor/jobs/{id}/retry",
             post(ops::retry_executor_job),
         )

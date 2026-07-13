@@ -31,6 +31,7 @@ impl AppStore {
         let transaction = client.transaction_details(tx_hash).await?.transaction;
         let vault = self.vault_config().await;
         let merchant_lock = script_from_address(&request.ckb_address)?;
+        let operator_lock = operator_lock_script(&vault)?;
         let vault_lock = vault_lock_script(&vault)?;
         let vault_type_code = required_hash(
             vault.scripts.vault_type_code_hash.as_deref(),
@@ -56,8 +57,8 @@ impl AppStore {
             .as_ref()
             .ok_or_else(|| anyhow!("request transaction vault output type script is missing"))?;
         let (request_index, output) =
-            request_cell(&transaction, &merchant_lock, &request_type_code)?;
-        require_request_identity(&output, vault_type, &merchant_lock, request)?;
+            request_cell(&transaction, &operator_lock, &request_type_code)?;
+        require_request_identity(&output, vault_type, &merchant_lock, &operator_lock, request)?;
         require_request_data(&output, request)?;
         require_declared_out_point(request, tx_hash, request_index)?;
         Ok(())
@@ -116,21 +117,21 @@ fn next_vault_cell(
 
 fn request_cell(
     transaction: &Value,
-    merchant_lock: &ChainScript,
+    operator_lock: &ChainScript,
     request_type_code: &str,
 ) -> Result<(usize, ChainOutput)> {
     let matches = outputs(transaction)?
         .into_iter()
         .enumerate()
         .filter(|(_, output)| {
-            output.lock == *merchant_lock
+            output.lock == *operator_lock
                 && type_code_matches(&output.type_script, request_type_code)
         })
         .collect::<Vec<_>>();
     match matches.len() {
         1 => Ok(matches.into_iter().next().unwrap()),
         0 => Err(anyhow!(
-            "request transaction did not create the merchant capacity request cell"
+            "request transaction did not create the executor-spendable capacity request cell"
         )),
         _ => Err(anyhow!(
             "request transaction created duplicate merchant request cells"
@@ -167,6 +168,7 @@ fn require_request_identity(
     output: &ChainOutput,
     vault_type: &ChainScript,
     merchant_lock: &ChainScript,
+    operator_lock: &ChainScript,
     request: &LiquidityRequest,
 ) -> Result<()> {
     let Some(type_script) = output.type_script.as_ref() else {
@@ -187,13 +189,13 @@ fn require_request_identity(
         &script_hash(merchant_lock)?,
         "merchant lock",
     )?;
+    require_arg_segment(
+        &type_script.args,
+        2,
+        &script_hash(operator_lock)?,
+        "operator lock",
+    )?;
     require_arg_segment(&type_script.args, 3, &request_id(&request.id), "request id")?;
-    if arg_segment(&type_script.args, 2)?
-        .chars()
-        .all(|ch| ch == '0')
-    {
-        return Err(anyhow!("request cell operator lock hash is missing"));
-    }
     Ok(())
 }
 
@@ -269,5 +271,13 @@ fn vault_lock_script(vault: &crate::domain::VaultConfig) -> Result<ChainScript> 
         .address
         .as_deref()
         .ok_or_else(|| anyhow!("LIQUIDLANE_VAULT_CKB_ADDRESS is missing"))?;
+    script_from_address(address)
+}
+
+fn operator_lock_script(vault: &crate::domain::VaultConfig) -> Result<ChainScript> {
+    let address = vault
+        .executor_address
+        .as_deref()
+        .ok_or_else(|| anyhow!("LIQUIDLANE_EXECUTOR_CKB_ADDRESS is missing"))?;
     script_from_address(address)
 }

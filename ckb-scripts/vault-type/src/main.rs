@@ -15,16 +15,20 @@ liquidlane_scripts_shared::ckb_panic_handler!();
 const ADMIN_OFFSET: usize = 0;
 const LP_RECEIPT_OFFSET: usize = HASH_SIZE;
 const REQUEST_OFFSET: usize = HASH_SIZE * 2;
-const FEE_CLAIM_OFFSET: usize = HASH_SIZE * 3;
-const ARGS_LEN: usize = HASH_SIZE * 4;
+const FUNDING_INTENT_OFFSET: usize = HASH_SIZE * 3;
+const FEE_CLAIM_OFFSET: usize = HASH_SIZE * 4;
+const ARGS_LEN: usize = HASH_SIZE * 5;
 const DATA_LEN: usize = 1 + 4 * 8;
 const RECEIPT_DATA_LEN: usize = 1 + 5 * 8;
 const REQUEST_DATA_LEN: usize = 1 + 1 + 3 * 8;
+const FUNDING_DATA_LEN: usize = 1 + 1 + 8;
 const CLAIM_DATA_LEN: usize = 1 + 1 + 8;
 const RECEIPT_SUPPLIED_OFFSET: usize = 1;
 const REQUEST_AMOUNT_OFFSET: usize = 2;
 const REQUEST_FEE_OFFSET: usize = 10;
+const FUNDING_AMOUNT_OFFSET: usize = 2;
 const CLAIM_AMOUNT_OFFSET: usize = 2;
+const SHANNONS_PER_CKB: u64 = 100_000_000;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct VaultData {
@@ -38,6 +42,7 @@ struct Args {
     admin_lock: Hash,
     lp_receipt_type: Hash,
     request_type: Hash,
+    funding_intent_type: Hash,
     fee_claim_type: Hash,
 }
 
@@ -45,6 +50,7 @@ struct PathAuth {
     admin: bool,
     receipt: bool,
     request: bool,
+    funding: bool,
     claim: bool,
 }
 
@@ -72,6 +78,7 @@ impl Args {
             admin_lock: read_hash(&bytes, ADMIN_OFFSET)?,
             lp_receipt_type: read_hash(&bytes, LP_RECEIPT_OFFSET)?,
             request_type: read_hash(&bytes, REQUEST_OFFSET)?,
+            funding_intent_type: read_hash(&bytes, FUNDING_INTENT_OFFSET)?,
             fee_claim_type: read_hash(&bytes, FEE_CLAIM_OFFSET)?,
         })
     }
@@ -103,12 +110,11 @@ impl PathAuth {
             admin: has_input_lock_hash(&args.admin_lock),
             receipt: has_input_or_output_type_code_hash(&args.lp_receipt_type),
             request: has_input_or_output_type_code_hash(&args.request_type),
-            claim: has_input_or_output_type_code_hash(&args.fee_claim_type),
+            funding: has_input_or_output_type_code_hash(&args.funding_intent_type), claim: has_input_or_output_type_code_hash(&args.fee_claim_type),
         }
     }
-
     fn any_service(&self) -> bool {
-        self.receipt || self.request || self.claim
+        self.receipt || self.request || self.funding || self.claim
     }
 }
 
@@ -149,14 +155,23 @@ fn validate_update(
     if !auth.admin && !auth.any_service() {
         return Err(ScriptError::Unauthorized);
     }
-    require_capacity_delta(auth)?;
+    require_capacity_delta(args, auth)?;
     require_accounting_delta(args, auth, input, output)
 }
 
-fn require_capacity_delta(auth: &PathAuth) -> ScriptResult<()> {
+fn require_capacity_delta(args: &Args, auth: &PathAuth) -> ScriptResult<()> {
     let input_capacity = sum_capacity(Source::GroupInput);
     let output_capacity = sum_capacity(Source::GroupOutput);
     if output_capacity >= input_capacity || auth.receipt || auth.claim {
+        return Ok(());
+    }
+    let delta = input_capacity - output_capacity;
+    let funding_limit = max_field_sum(
+        &args.funding_intent_type,
+        FUNDING_AMOUNT_OFFSET,
+        FUNDING_DATA_LEN,
+    )?;
+    if auth.funding && delta <= ckb_to_shannons(funding_limit)? {
         return Ok(());
     }
     Err(ScriptError::ValueMismatch)
@@ -278,4 +293,8 @@ fn require_same_delta(
 
 fn abs_delta(left: u64, right: u64) -> u64 {
     left.abs_diff(right)
+}
+
+fn ckb_to_shannons(amount: u64) -> ScriptResult<u64> {
+    amount.checked_mul(SHANNONS_PER_CKB).ok_or(ScriptError::Arithmetic)
 }

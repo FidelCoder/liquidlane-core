@@ -4,6 +4,7 @@ use axum::{
     response::IntoResponse,
 };
 use serde::Serialize;
+use serde_json::Value;
 use uuid::Uuid;
 
 use super::{ApiError, AppState, AuthedUser};
@@ -179,6 +180,15 @@ pub(super) async fn settle_external_funding_request(
     require_internal_operator(&user)?;
     Ok(Json(
         state.store.settle_liquidity_request(id, request).await?,
+    ))
+}
+
+pub(super) async fn fiber_funding_builder(
+    State(state): State<AppState>,
+    Json(payload): Json<Value>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(
+        state.store.build_fiber_funding_transaction(payload).await?,
     ))
 }
 
