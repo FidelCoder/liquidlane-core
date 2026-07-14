@@ -147,7 +147,7 @@ fn recovered_liquidity_request(
         routing_fee_bps: 30,
         fiber_peer_pubkey: None,
         fiber_peer_address: None,
-        public_channel: true,
+        public_channel: false,
         funding_udt_type_script: None,
         request_cell_id: request_cell.to_string(),
         request_tx_hash: Some(request.request_tx_hash.clone()),

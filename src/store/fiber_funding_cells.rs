@@ -1,8 +1,9 @@
 use anyhow::{Result, anyhow};
 use ckb_sdk::{
     CkbRpcClient,
+    constants::SIGHASH_TYPE_HASH,
     rpc::ckb_indexer::{Order, SearchKey},
-    traits::{CellQueryOptions, ValueRangeOption},
+    traits::{CellDepResolver, CellQueryOptions, DefaultCellDepResolver, ValueRangeOption},
 };
 use ckb_types::{
     core::{Capacity, DepType},
@@ -55,13 +56,14 @@ pub(super) fn executor_cell(rpc_url: &str, address: &str) -> Result<LiveInput> {
     let lock = script_from_address(address)?;
     let mut query = CellQueryOptions::new_lock(lock);
     query.with_data = Some(true);
+    query.data_len_range = Some(ValueRangeOption::new_exact(0));
     query.capacity_range = Some(ValueRangeOption::new_min(62 * SHANNONS_PER_CKB));
     let rpc = CkbRpcClient::new(rpc_url);
     let page = rpc.get_cells(SearchKey::from(query), Order::Desc, 10u32.into(), None)?;
     let cell = page
         .objects
         .into_iter()
-        .next()
+        .max_by_key(|cell| u64::from(cell.output.capacity))
         .ok_or_else(|| anyhow!("executor wallet has no spendable CKB cell for builder fees"))?;
     Ok(LiveInput {
         input: cell_input(cell.out_point.into()),
@@ -78,7 +80,12 @@ pub(super) fn funding_cell(
     payload: &FiberFundingBuilderPayload,
     funding_lock: Script,
 ) -> Result<TxOutput> {
-    let capacity = u64::try_from(payload.request.local_amount)
+    let capacity = payload
+        .request
+        .local_amount
+        .checked_add(u128::from(payload.request.local_reserved_ckb_amount))
+        .ok_or_else(|| anyhow!("Fiber funding amount exceeds u128 shannon range"))?;
+    let capacity = u64::try_from(capacity)
         .map_err(|_| anyhow!("Fiber funding amount exceeds u64 shannon range"))?;
     Ok(TxOutput {
         output: CellOutput::new_builder()
@@ -243,10 +250,22 @@ pub(super) fn add_script_deps(cell_deps: &mut Vec<CellDep>, vault: &VaultConfig)
 }
 
 pub(super) fn add_default_lock_dep(
-    _cell_deps: &mut Vec<CellDep>,
-    _rpc: &CkbRpcClient,
-    _lock: &Script,
+    cell_deps: &mut Vec<CellDep>,
+    rpc: &CkbRpcClient,
+    lock: &Script,
 ) -> Result<()> {
+    if lock.code_hash().as_slice() != SIGHASH_TYPE_HASH.as_bytes() {
+        return Ok(());
+    }
+    let genesis = rpc
+        .get_block_by_number(0u64.into())?
+        .ok_or_else(|| anyhow!("CKB genesis block unavailable for default lock dep"))?;
+    let resolver = DefaultCellDepResolver::from_genesis(&genesis.into())
+        .map_err(|err| anyhow!("failed to resolve CKB default lock deps from genesis: {err}"))?;
+    let dep = resolver
+        .resolve(lock)
+        .ok_or_else(|| anyhow!("failed to resolve default sighash lock cell dep"))?;
+    push_dep(cell_deps, dep.out_point(), DepType::DepGroup);
     Ok(())
 }
 

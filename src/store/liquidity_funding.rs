@@ -35,9 +35,21 @@ impl AppStore {
 
         self.mark_vault_funding_negotiating(request, actor_id, executor)
             .await?;
+        tracing::info!(
+            request_id = %request.id,
+            merchant = %request.merchant_name,
+            amount = request.amount,
+            asset = %request.asset,
+            peer = ?request.fiber_peer_pubkey,
+            "starting vault-funded Fiber handoff through Fiber shell builder"
+        );
         let outcome = self.fiber.open_channel(request).await;
         let mut state = self.inner.write().await;
         let now = Utc::now();
+        let funding_built = state.external_funding_intents.iter().any(|intent| {
+            intent.request_id == request.id
+                && (intent.funding_tx_hash.is_some() || intent.funding_out_point.is_some())
+        });
         let stored = state
             .liquidity_requests
             .iter_mut()
@@ -46,39 +58,57 @@ impl AppStore {
 
         let (job_status, job_error, job_ref, label) = match outcome {
             Ok(outcome) => {
-                stored.status = if outcome.channel_id.is_some() {
-                    LiquidityStatus::ChannelOpen
-                } else {
-                    LiquidityStatus::PendingFiberChannel
-                };
                 stored.fiber_temporary_channel_id = outcome.temporary_channel_id;
                 stored.channel_id = outcome.channel_id;
-                stored.fiber_note = Some(
-                    "LiquidLane submitted a vault-funded Fiber handoff. Vault liquidity is now waiting for Fiber confirmation."
-                        .to_string(),
+                tracing::info!(
+                    request_id = %stored.id,
+                    channel_id = ?stored.channel_id,
+                    temporary_channel_id = ?stored.fiber_temporary_channel_id,
+                    funding_built,
+                    "Fiber accepted vault-funded handoff"
                 );
-                stored.fiber_error = None;
+                if funding_built {
+                    stored.status = LiquidityStatus::FundingSubmitted;
+                    stored.fiber_note = Some(
+                        "Vault-funded CKB transaction was built from LP liquidity and handed to Fiber."
+                            .to_string(),
+                    );
+                    stored.fiber_error = None;
+                } else {
+                    stored.status = LiquidityStatus::FundingRequired;
+                    stored.fiber_note = Some(
+                        "Fiber accepted the channel request but the vault funding builder has not produced a CKB transaction yet."
+                            .to_string(),
+                    );
+                    stored.fiber_error = None;
+                }
                 let reference = stored
                     .channel_id
                     .clone()
                     .or_else(|| stored.fiber_temporary_channel_id.clone());
-                let status = if stored.status == LiquidityStatus::ChannelOpen {
-                    ExecutorJobStatus::ChannelActive
-                } else {
+                let status = if funding_built {
                     ExecutorJobStatus::AwaitingFundingConfirmation
+                } else {
+                    ExecutorJobStatus::AwaitingVaultFunding
                 };
+                let error = stored.fiber_error.clone();
                 (
                     status,
-                    None,
+                    error,
                     reference,
                     format!(
-                        "Vault-funded Fiber handoff submitted for {}",
+                        "Vault-funded Fiber handoff negotiated for {}",
                         stored.merchant_name
                     ),
                 )
             }
             Err(error) => {
                 let message = error.to_string();
+                tracing::warn!(
+                    request_id = %stored.id,
+                    error = %message,
+                    "Fiber rejected vault-funded handoff"
+                );
                 stored.status = LiquidityStatus::Failed;
                 stored.fiber_error = Some(message.clone());
                 stored.fiber_note = Some(
@@ -165,7 +195,10 @@ fn update_intent_after_handoff(
         intent.status = match request.status {
             LiquidityStatus::ChannelOpen => ExternalFundingIntentStatus::ChannelActive,
             LiquidityStatus::Failed => ExternalFundingIntentStatus::Failed,
-            _ => ExternalFundingIntentStatus::FundingSubmitted,
+            LiquidityStatus::FundingSubmitted | LiquidityStatus::PendingFiberChannel => {
+                ExternalFundingIntentStatus::FundingSubmitted
+            }
+            _ => ExternalFundingIntentStatus::BuilderRequired,
         };
         intent.fiber_ref = request
             .channel_id
@@ -175,7 +208,15 @@ fn update_intent_after_handoff(
             .fiber_note
             .clone()
             .unwrap_or_else(|| "Vault-funded Fiber handoff submitted.".to_string());
-        intent.blockers.clear();
+        if request.status == LiquidityStatus::Failed {
+            intent.blockers = request
+                .fiber_error
+                .clone()
+                .map(|error| vec![error])
+                .unwrap_or_default();
+        } else {
+            intent.blockers.clear();
+        }
         intent.updated_at = now;
     }
 }

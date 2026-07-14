@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::Utc;
+use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
 
 use super::{
@@ -7,10 +7,13 @@ use super::{
 };
 use crate::{
     domain::{
-        ActivityEvent, ExecutorJobStatus, ExternalFundingIntent, LiquidityRequest, LiquidityStatus,
+        ActivityEvent, ExecutorJobStatus, ExternalFundingIntent, ExternalFundingIntentStatus,
+        LiquidityRequest, LiquidityStatus,
     },
     fiber::FiberChannel,
 };
+
+const FUNDING_TX_TIMEOUT: Duration = Duration::minutes(2);
 
 impl AppStore {
     pub async fn sync_fiber_channels(&self) -> Result<usize> {
@@ -18,9 +21,6 @@ impl AppStore {
             return Ok(0);
         }
         let channels = self.fiber.list_channels().await?;
-        if channels.is_empty() {
-            return Ok(0);
-        }
 
         let now = Utc::now();
         let mut state = self.inner.write().await;
@@ -82,6 +82,74 @@ impl AppStore {
                         .to_string(),
                 );
                 request.fiber_note = Some("Liquidity remains reserved. Retry after the vault-funded Fiber transaction issue is fixed.".to_string());
+                request.updated_at = now;
+                failed.push(request.clone());
+                continue;
+            }
+
+            if request.status == LiquidityStatus::FundingRequired
+                && funding_builder_timed_out(request, &intents, now)
+            {
+                request.status = LiquidityStatus::Failed;
+                request.fiber_error = Some(
+                    "Vault funding builder timed out before a Fiber funding transaction was produced. Core did not receive a funding_tx_hash or funding_out_point for this reserve."
+                        .to_string(),
+                );
+                request.fiber_note = Some(
+                    "Vault liquidity remains reserved and repairable. Retry the Fiber handoff after the Fiber external-funding builder path is healthy."
+                        .to_string(),
+                );
+                request.updated_at = now;
+                tracing::warn!(
+                    request_id = %request.id,
+                    amount = request.amount,
+                    asset = %request.asset,
+                    status = ?request.status,
+                    "vault-funded Fiber request timed out at builder_required stage"
+                );
+                failed.push(request.clone());
+                continue;
+            }
+
+            if matches!(
+                request.status,
+                LiquidityStatus::FundingSubmitted | LiquidityStatus::PendingFiberChannel
+            ) && funding_negotiation_timed_out(request, &intents, &channels, now)
+            {
+                request.status = LiquidityStatus::Failed;
+                request.fiber_error = Some(
+                    "Fiber funding negotiation timed out before a funding transaction outpoint was produced."
+                        .to_string(),
+                );
+                request.fiber_note = Some(
+                    "Vault liquidity remains reserved. Retry the Fiber handoff after the executor funding path is healthy."
+                        .to_string(),
+                );
+                request.updated_at = now;
+                tracing::warn!(
+                    request_id = %request.id,
+                    amount = request.amount,
+                    asset = %request.asset,
+                    "vault-funded Fiber request timed out while waiting for funding outpoint"
+                );
+                failed.push(request.clone());
+                continue;
+            }
+
+            if matches!(
+                request.status,
+                LiquidityStatus::FundingSubmitted | LiquidityStatus::PendingFiberChannel
+            ) && funding_tx_timed_out(request, &intents, now)
+            {
+                request.status = LiquidityStatus::Failed;
+                request.fiber_error = Some(
+                    "Fiber external funding timed out before a funding transaction hash was produced."
+                        .to_string(),
+                );
+                request.fiber_note = Some(
+                    "Vault liquidity remains reserved. Retry the Fiber handoff after the executor funding path is healthy."
+                        .to_string(),
+                );
                 request.updated_at = now;
                 failed.push(request.clone());
             }
@@ -163,12 +231,37 @@ impl AppStore {
                 job.last_error = request.fiber_error.clone();
                 job.updated_at = now;
             }
+            for intent in state
+                .external_funding_intents
+                .iter_mut()
+                .filter(|intent| intent.request_id == request.id)
+            {
+                intent.status = ExternalFundingIntentStatus::Failed;
+                intent.blockers = request
+                    .fiber_error
+                    .clone()
+                    .map(|error| vec![error])
+                    .unwrap_or_default();
+                intent.updated_at = now;
+            }
+            let failure_label = request
+                .fiber_error
+                .as_deref()
+                .map(|error| {
+                    format!(
+                        "Fiber channel funding failed for {}: {error}",
+                        request.merchant_name
+                    )
+                })
+                .unwrap_or_else(|| {
+                    format!("Fiber channel funding failed for {}", request.merchant_name)
+                });
             state.events.insert(
                 0,
                 ActivityEvent {
                     id: Uuid::new_v4(),
                     actor_id: request.merchant_id,
-                    label: format!("Fiber channel funding failed for {}", request.merchant_name),
+                    label: failure_label,
                     amount: Some(request.amount),
                     asset: Some(request.asset.clone()),
                     created_at: now,
@@ -182,6 +275,73 @@ impl AppStore {
         }
         Ok(changed)
     }
+}
+
+fn funding_builder_timed_out(
+    request: &LiquidityRequest,
+    intents: &[ExternalFundingIntent],
+    now: DateTime<Utc>,
+) -> bool {
+    let Some(intent) = intents
+        .iter()
+        .find(|intent| intent.request_id == request.id)
+    else {
+        return now.signed_duration_since(request.updated_at) >= FUNDING_TX_TIMEOUT;
+    };
+    if intent.status != ExternalFundingIntentStatus::BuilderRequired {
+        return false;
+    }
+    if intent.funding_tx_hash.is_some() || intent.funding_out_point.is_some() {
+        return false;
+    }
+    now.signed_duration_since(intent.updated_at) >= FUNDING_TX_TIMEOUT
+}
+
+fn funding_tx_timed_out(
+    request: &LiquidityRequest,
+    intents: &[ExternalFundingIntent],
+    now: DateTime<Utc>,
+) -> bool {
+    let Some(intent) = intents
+        .iter()
+        .find(|intent| intent.request_id == request.id)
+    else {
+        return false;
+    };
+    if intent.status != ExternalFundingIntentStatus::FundingSubmitted {
+        return false;
+    }
+    if intent.funding_tx_hash.is_some() {
+        return false;
+    }
+    now.signed_duration_since(intent.updated_at) >= FUNDING_TX_TIMEOUT
+}
+
+fn funding_negotiation_timed_out(
+    request: &LiquidityRequest,
+    intents: &[ExternalFundingIntent],
+    channels: &[FiberChannel],
+    now: DateTime<Utc>,
+) -> bool {
+    if now.signed_duration_since(request.updated_at) < FUNDING_TX_TIMEOUT {
+        return false;
+    }
+    matching_unfunded_channel(request, intents, channels).is_some()
+}
+
+fn matching_unfunded_channel<'a>(
+    request: &LiquidityRequest,
+    intents: &[ExternalFundingIntent],
+    channels: &'a [FiberChannel],
+) -> Option<&'a FiberChannel> {
+    channels.iter().find(|channel| {
+        !channel.is_usable
+            && !channel.is_failed
+            && !channel.is_closed
+            && channel.funding_tx_hash.is_none()
+            && channel.funding_out_point.is_none()
+            && channel_matches_request(request, intents, channel)
+    })
 }
 
 pub(super) fn matching_usable_channel<'a>(
@@ -233,6 +393,10 @@ pub(super) fn channel_matches_request(
             intent.funding_out_point.as_deref(),
         )
     }) || matches_ref(channel.channel_id.as_deref(), request.channel_id.as_deref())
+        || matches_ref(
+            channel.channel_id.as_deref(),
+            request.fiber_temporary_channel_id.as_deref(),
+        )
         || matches_ref(
             channel.temporary_channel_id.as_deref(),
             request.fiber_temporary_channel_id.as_deref(),

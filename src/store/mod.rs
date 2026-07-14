@@ -62,9 +62,8 @@ use crate::{
     ckb_rpc::{CkbRpcClient, explicit_transaction_hash},
     domain::{
         ActivityEvent, AuthChallenge, CapacityReservation, Deposit, ExecutorJob,
-        ExternalFundingIntent, FeeClaim, LiquidityRequest, LpPosition,
-        RequestIntent, SupplyIntent, User, VaultConfig, WithdrawalIntent,
-        normalize_executor_funding_mode,
+        ExternalFundingIntent, FeeClaim, LiquidityRequest, LpPosition, RequestIntent, SupplyIntent,
+        User, VaultConfig, WithdrawalIntent, normalize_executor_funding_mode,
     },
     fiber::FiberClient,
 };

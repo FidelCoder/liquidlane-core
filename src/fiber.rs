@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::{Result, anyhow};
 use reqwest::Client;
 use serde::Deserialize;
@@ -44,10 +46,14 @@ struct JsonRpcError {
 
 impl FiberClient {
     pub fn new(rpc_url: Option<String>, auth_token: Option<String>) -> Self {
+        let http = Client::builder()
+            .timeout(Duration::from_secs(75))
+            .build()
+            .unwrap_or_else(|_| Client::new());
         Self {
             rpc_url: rpc_url.and_then(non_empty),
             auth_token: auth_token.and_then(non_empty),
-            http: Client::new(),
+            http,
         }
     }
 
@@ -115,7 +121,7 @@ impl FiberClient {
             Value::String(funding_amount_hex(&request.asset, request.amount)?),
         );
         params.insert("public".to_string(), json!(false));
-        params.insert("one_way".to_string(), json!(true));
+        params.insert("one_way".to_string(), json!(false));
         if let Some(script) = request.funding_udt_type_script.as_ref() {
             params.insert(
                 "funding_udt_type_script".to_string(),
@@ -187,7 +193,35 @@ impl FiberClient {
             params,
         )
         .await?;
-        Ok(())
+        self.wait_for_peer(rpc_url, peer_pubkey).await
+    }
+
+    async fn wait_for_peer(&self, rpc_url: &str, peer_pubkey: &str) -> Result<()> {
+        for _ in 0..20 {
+            if self.peer_is_connected(rpc_url, peer_pubkey).await? {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+        Err(anyhow!(
+            "Fiber peer {peer_pubkey} is not connected after connect_peer; retry once the peer Init handshake is visible"
+        ))
+    }
+
+    async fn peer_is_connected(&self, rpc_url: &str, peer_pubkey: &str) -> Result<bool> {
+        let result = self
+            .rpc_call_params(rpc_url, "list_peers", "liquidlane-list-peers", json!([]))
+            .await?;
+        Ok(result
+            .get("peers")
+            .and_then(Value::as_array)
+            .is_some_and(|peers| {
+                peers.iter().any(|peer| {
+                    peer.get("pubkey")
+                        .and_then(Value::as_str)
+                        .is_some_and(|value| value.eq_ignore_ascii_case(peer_pubkey))
+                })
+            }))
     }
 
     async fn rpc_call(
@@ -220,9 +254,19 @@ impl FiberClient {
             builder = builder.bearer_auth(token);
         }
 
-        let response = builder.send().await?;
+        let response = builder.send().await.map_err(|err| {
+            if method == "open_channel_with_external_funding" && err.is_timeout() {
+                anyhow!(
+                    "Fiber RPC {method} timed out before returning an unsigned external funding transaction. The receiver must accept the channel before LiquidLane can build the vault-funded CKB transaction; Fiber v0.9 external funding currently requires receiver-side accept-channel funding instead of a pure zero-funding one-way accept."
+                )
+            } else {
+                anyhow!("Fiber RPC {method} transport failed: {err}")
+            }
+        })?;
         let status = response.status();
-        let envelope = response.json::<JsonRpcEnvelope>().await?;
+        let envelope = response.json::<JsonRpcEnvelope>().await.map_err(|err| {
+            anyhow!("Fiber RPC {method} returned an invalid JSON-RPC response: {err}")
+        })?;
         if let Some(error) = envelope.error {
             return Err(anyhow!(
                 "Fiber RPC {method} failed ({}): {}",

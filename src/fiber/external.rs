@@ -106,6 +106,11 @@ pub(super) fn external_funding_params(
         Value::String(funding_amount_hex(&request.asset, request.amount)?),
     );
     params.insert("public".to_string(), json!(funding.public_channel));
+    params.insert("one_way".to_string(), json!(true));
+    params.insert(
+        "reserved_ckb_amount".to_string(),
+        Value::String("0x0".to_string()),
+    );
     params.insert(
         "funding_lock_script".to_string(),
         script_to_value(&funding.funding_lock_script),
@@ -143,6 +148,8 @@ mod tests {
         assert_eq!(params["pubkey"], "03peer");
         assert_eq!(params["funding_amount"], "0x4a817c800");
         assert_eq!(params["public"], false);
+        assert_eq!(params["one_way"], true);
+        assert_eq!(params["reserved_ckb_amount"], "0x0");
         assert_eq!(params["funding_lock_script"]["hash_type"], "type");
         assert_eq!(params["shutdown_script"]["args"], "0xshutdown");
         assert!(params.get("funding_lock_script_cell_deps").is_none());

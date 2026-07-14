@@ -179,6 +179,9 @@ impl AppStore {
             intent.status = ExternalFundingIntentStatus::BuilderRequired;
             intent.blockers = blockers.clone();
             intent.note = external_funding_note(&blockers);
+            intent.funding_tx_hash = None;
+            intent.funding_out_point = None;
+            intent.fiber_ref = None;
             intent.fiber_peer_pubkey = request.fiber_peer_pubkey.clone();
             intent.fiber_peer_address = request.fiber_peer_address.clone();
             intent.updated_at = now;
@@ -221,6 +224,15 @@ impl AppStore {
         stored.fiber_error = blockers.first().cloned();
         stored.updated_at = now;
         let updated = stored.clone();
+        tracing::info!(
+            request_id = %updated.id,
+            intent_id = %intent_id,
+            merchant = %updated.merchant_name,
+            amount = updated.amount,
+            asset = %updated.asset,
+            blockers = ?blockers,
+            "vault-funded Fiber intent prepared"
+        );
 
         state.events.insert(
             0,

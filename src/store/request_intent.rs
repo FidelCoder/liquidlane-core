@@ -41,7 +41,7 @@ impl AppStore {
             routing_fee_bps: quote.routing_fee_bps,
             fiber_peer_pubkey: normalize_optional(&request.fiber_peer_pubkey),
             fiber_peer_address: normalize_optional(&request.fiber_peer_address),
-            public_channel: request.public_channel.unwrap_or(true),
+            public_channel: request.public_channel.unwrap_or(false),
             funding_udt_type_script: request.funding_udt_type_script,
             request_cell_id: request_cell_id(id),
             memo: format!(

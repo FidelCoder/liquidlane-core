@@ -83,20 +83,23 @@ impl AppStore {
             .intent_id
             .ok_or_else(|| anyhow!("supply settlement requires intent_id"))?;
 
-        let mut state = self.inner.write().await;
-        let intent_index = state
-            .supply_intents
-            .iter()
-            .position(|intent| intent.id == intent_id)
-            .ok_or_else(|| anyhow!("supply intent not found"))?;
-        let intent = state.supply_intents[intent_index].clone();
-        if user.role != UserRole::Operator && intent.lp_id != user.id {
-            return Err(anyhow!("you can only settle your own supply intent"));
-        }
-        validate_pending_intent(&intent.status, intent.expires_at)?;
-        if intent.asset != asset || intent.amount != request.amount {
-            return Err(anyhow!("supply settlement does not match the intent"));
-        }
+        let intent = {
+            let state = self.inner.read().await;
+            let intent = state
+                .supply_intents
+                .iter()
+                .find(|intent| intent.id == intent_id)
+                .cloned()
+                .ok_or_else(|| anyhow!("supply intent not found"))?;
+            if user.role != UserRole::Operator && intent.lp_id != user.id {
+                return Err(anyhow!("you can only settle your own supply intent"));
+            }
+            validate_pending_intent(&intent.status, intent.expires_at)?;
+            if intent.asset != asset || intent.amount != request.amount {
+                return Err(anyhow!("supply settlement does not match the intent"));
+            }
+            intent
+        };
         self.verify_vault_deposit_tx(&tx_hash, &intent, user, &request.signed_tx)
             .await?;
 
@@ -114,6 +117,16 @@ impl AppStore {
         };
         let position = lp_position(user, &deposit, &intent.receipt_cell_id, &tx_hash, now);
 
+        let mut state = self.inner.write().await;
+        let intent_index = state
+            .supply_intents
+            .iter()
+            .position(|stored| stored.id == intent_id)
+            .ok_or_else(|| anyhow!("supply intent not found"))?;
+        validate_pending_intent(
+            &state.supply_intents[intent_index].status,
+            state.supply_intents[intent_index].expires_at,
+        )?;
         state.supply_intents[intent_index].status = IntentStatus::Settled;
         state.supply_intents[intent_index].tx_hash = Some(tx_hash.clone());
         state.vault_cell_out_point = Some(vault_output_out_point(&tx_hash));

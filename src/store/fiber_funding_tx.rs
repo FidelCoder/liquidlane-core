@@ -52,7 +52,12 @@ pub(super) fn build_vault_funding_transaction(
     }
     let funding_lock = packed_script_entity_hex(&payload.request.script)?;
     let base: TransactionView = Into::<packed::Transaction>::into(payload.tx.clone()).into_view();
-    let local_shannons = u64::try_from(payload.request.local_amount)
+    let funded_shannons = payload
+        .request
+        .local_amount
+        .checked_add(u128::from(payload.request.local_reserved_ckb_amount))
+        .ok_or_else(|| anyhow!("Fiber funding amount exceeds u128 shannon range"))?;
+    let local_shannons = u64::try_from(funded_shannons)
         .map_err(|_| anyhow!("Fiber local amount exceeds u64 shannon range"))?;
     let expected_shannons = matched
         .request
@@ -86,7 +91,6 @@ pub(super) fn build_vault_funding_transaction(
         &funding_lock,
     )?;
     let change = executor_change_cell(&executor, &funding_intent)?;
-
     let mut inputs = base.inputs().into_iter().collect::<Vec<_>>();
     let base_input_len = inputs.len();
     inputs.push(vault_cell.input.clone());
@@ -107,11 +111,9 @@ pub(super) fn build_vault_funding_transaction(
         outputs.push(change.output);
         outputs_data.push(change.data);
     }
-
     let mut cell_deps = base.cell_deps().into_iter().collect::<Vec<_>>();
     add_script_deps(&mut cell_deps, &matched.vault)?;
     add_default_lock_dep(&mut cell_deps, &rpc, &executor_lock)?;
-
     let mut witnesses = base.witnesses().into_iter().collect::<Vec<_>>();
     while witnesses.len() < base_input_len {
         witnesses.push(packed::Bytes::default());
@@ -119,7 +121,6 @@ pub(super) fn build_vault_funding_transaction(
     witnesses.push(packed::Bytes::default());
     witnesses.push(secp_placeholder_witness());
     witnesses.push(packed::Bytes::default());
-
     let tx = base
         .as_advanced_builder()
         .set_cell_deps(cell_deps)

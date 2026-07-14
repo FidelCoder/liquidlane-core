@@ -6,18 +6,48 @@ set -eu
 BASE_DIR="${FIBER_BASE_DIR:-/fiber}"
 RPC_PORT="${PORT:-8227}"
 P2P_PORT="${FIBER_P2P_PORT:-8228}"
+RPC_LISTENING_ADDR="${RPC_LISTENING_ADDR:-0.0.0.0:${RPC_PORT}}"
 CKB_RPC_URL="${FIBER_CKB_RPC_URL:-https://testnet.ckb.dev/rpc}"
 LIQUIDLANE_FUNDING_BUILDER_URL="${LIQUIDLANE_CORE_FUNDING_BUILDER_URL:-${FIBER_LIQUIDLANE_FUNDING_BUILDER_URL:-}}"
 if [ -z "$LIQUIDLANE_FUNDING_BUILDER_URL" ] && [ -n "${RENDER_SERVICE_ID:-}" ]; then
   LIQUIDLANE_FUNDING_BUILDER_URL="https://liquidlane-core-fiber.onrender.com/internal/fiber/funding-builder"
 fi
 if [ -n "$LIQUIDLANE_FUNDING_BUILDER_URL" ] && [ -z "${FIBER_FUNDING_TX_SHELL_BUILDER:-}" ]; then
-  export FIBER_FUNDING_TX_SHELL_BUILDER="curl -fsS -H content-type:application/json --data-binary @- $LIQUIDLANE_FUNDING_BUILDER_URL"
+  mkdir -p "$BASE_DIR"
+  export LIQUIDLANE_FUNDING_BUILDER_URL
+  FUNDING_PROXY="$BASE_DIR/funding-builder-proxy.sh"
+  cat > "$FUNDING_PROXY" <<'SH'
+#!/bin/sh
+set -eu
+
+payload="$(mktemp "${TMPDIR:-/tmp}/liquidlane-funding-builder.XXXXXX.json")"
+response="$(mktemp "${TMPDIR:-/tmp}/liquidlane-funding-builder.XXXXXX.response.json")"
+trap 'rm -f "$payload" "$response"' EXIT
+
+timeout "${FIBER_FUNDING_BUILDER_STDIN_TIMEOUT_SECONDS:-3}" cat > "$payload" || true
+if [ ! -s "$payload" ]; then
+  echo "LiquidLane funding builder received an empty Fiber payload." >&2
+  exit 1
+fi
+
+code="$(curl -sS -o "$response" -w '%{http_code}' --connect-timeout "${FIBER_FUNDING_BUILDER_CONNECT_TIMEOUT_SECONDS:-5}" --max-time "${FIBER_FUNDING_BUILDER_HTTP_TIMEOUT_SECONDS:-30}" -H 'content-type: application/json' --data-binary @"$payload" "$LIQUIDLANE_FUNDING_BUILDER_URL")"
+if [ "$code" != "200" ]; then
+  cat "$response" >&2
+  exit 1
+fi
+cat "$response"
+SH
+  chmod +x "$FUNDING_PROXY" || true
+  export FIBER_FUNDING_TX_SHELL_BUILDER="$FUNDING_PROXY"
 fi
 RPC_BISCUIT_PUBLIC_KEY="${FIBER_RPC_BISCUIT_PUBLIC_KEY:-${RPC_BISCUIT_PUBLIC_KEY:-}}"
 RPC_AUTH_CONFIG=""
 if [ -n "$RPC_BISCUIT_PUBLIC_KEY" ]; then
   RPC_AUTH_CONFIG="  biscuit_public_key: \"$RPC_BISCUIT_PUBLIC_KEY\""
+fi
+FUNDING_TX_SHELL_BUILDER_CONFIG=""
+if [ -n "${FIBER_FUNDING_TX_SHELL_BUILDER:-}" ]; then
+  FUNDING_TX_SHELL_BUILDER_CONFIG="  funding_tx_shell_builder: \"$FIBER_FUNDING_TX_SHELL_BUILDER\""
 fi
 
 mkdir -p "$BASE_DIR/ckb"
@@ -73,11 +103,13 @@ fiber:
             dep_type: code
 
 rpc:
-  listening_addr: "0.0.0.0:${RPC_PORT}"
+  listening_addr: "${RPC_LISTENING_ADDR}"
 ${RPC_AUTH_CONFIG}
 
 ckb:
   rpc_url: "${CKB_RPC_URL}"
+${FUNDING_TX_SHELL_BUILDER_CONFIG}
+
 
 services:
   - fiber

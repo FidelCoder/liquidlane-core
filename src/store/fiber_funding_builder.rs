@@ -52,7 +52,19 @@ impl AppStore {
     pub async fn build_fiber_funding_transaction(&self, payload: Value) -> Result<Value> {
         let payload: FiberFundingBuilderPayload = serde_json::from_value(payload)
             .map_err(|err| anyhow!("invalid Fiber funding builder payload: {err}"))?;
+        tracing::info!(
+            local_amount = payload.request.local_amount,
+            remote_amount = payload.request.remote_amount,
+            funding_fee_rate = payload.request.funding_fee_rate,
+            "Fiber funding builder callback received"
+        );
         let matched = self.match_fiber_funding_request(&payload).await?;
+        tracing::info!(
+            request_id = %matched.request.id,
+            amount = matched.request.amount,
+            merchant = %matched.request.merchant_name,
+            "Fiber funding builder matched LiquidLane reserve"
+        );
         let built = tokio::task::spawn_blocking(move || {
             super::fiber_funding_tx::build_vault_funding_transaction(matched, payload)
         })
@@ -71,25 +83,25 @@ impl AppStore {
                 "LiquidLane vault-funded beta supports CKB funding only"
             ));
         }
-        if payload.request.local_reserved_ckb_amount != 0 {
+        if payload.request.remote_amount != 0 {
             return Err(anyhow!(
-                "Fiber requested reserved CKB outside the merchant amount; refusing mixed funding"
-            ));
-        }
-        if payload.request.remote_amount != 0 || payload.request.remote_reserved_ckb_amount != 0 {
-            return Err(anyhow!(
-                "LiquidLane vault-funded beta expects one-way local CKB funding only"
+                "LiquidLane vault-funded beta expects merchant-side receive capacity without remote channel balance"
             ));
         }
         if payload.request.funding_fee_rate == 0 {
             return Err(anyhow!("Fiber funding fee rate must be positive"));
         }
-        if payload.request.local_amount % SHANNONS_PER_CKB != 0 {
+        let funded_shannons = payload
+            .request
+            .local_amount
+            .checked_add(u128::from(payload.request.local_reserved_ckb_amount))
+            .ok_or_else(|| anyhow!("Fiber funding amount exceeds LiquidLane u128 range"))?;
+        if funded_shannons % SHANNONS_PER_CKB != 0 {
             return Err(anyhow!(
-                "Fiber local funding amount must be a whole CKB amount"
+                "Fiber local funding amount plus reserve must be a whole CKB amount"
             ));
         }
-        let amount = u64::try_from(payload.request.local_amount / SHANNONS_PER_CKB)
+        let amount = u64::try_from(funded_shannons / SHANNONS_PER_CKB)
             .map_err(|_| anyhow!("Fiber funding amount exceeds LiquidLane u64 range"))?;
         let state = self.inner.read().await;
         let mut matches = state
@@ -99,17 +111,40 @@ impl AppStore {
             .filter(|request| request.asset == "CKB")
             .filter(|request| request.request_cell_out_point.is_some())
             .filter(|request| request.fiber_peer_pubkey.is_some())
-            .filter(|request| matches!(request.status, LiquidityStatus::FundingRequired))
+            .filter(|request| {
+                matches!(
+                    request.status,
+                    LiquidityStatus::FundingRequired
+                        | LiquidityStatus::FundingSubmitted
+                        | LiquidityStatus::PendingFiberChannel
+                )
+            })
+            .filter(|request| {
+                state
+                    .external_funding_intents
+                    .iter()
+                    .find(|intent| intent.request_id == request.id)
+                    .is_none_or(|intent| {
+                        intent.funding_tx_hash.is_none() && intent.funding_out_point.is_none()
+                    })
+            })
             .cloned()
             .collect::<Vec<_>>();
         matches.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        let candidate_count = state.liquidity_requests.len();
         let request = matches.into_iter().next().ok_or_else(|| {
-            anyhow!("no reserved LiquidLane request matches Fiber funding amount {amount} CKB")
+            tracing::warn!(
+                amount,
+                candidates = candidate_count,
+                "Fiber funding builder could not match callback to an in-flight reserve"
+            );
+            anyhow!(
+                "no in-flight LiquidLane vault reserve matches Fiber funding amount {amount} CKB"
+            )
         })?;
-        Ok(MatchedFundingRequest {
-            vault: self.vault_config().await,
-            request,
-        })
+        drop(state);
+        let vault = self.vault_config().await;
+        Ok(MatchedFundingRequest { vault, request })
     }
 
     async fn mark_fiber_funding_built(&self, built: &BuiltFiberFundingTx) -> Result<()> {
@@ -123,6 +158,12 @@ impl AppStore {
             self.persist_locked(&state).await?;
             return Ok(());
         };
+        tracing::info!(
+            request_id = %request.id,
+            tx_hash = %built.tx_hash,
+            funding_out_point = %built.funding_out_point,
+            "vault-funded CKB funding transaction built"
+        );
         request.status = LiquidityStatus::FundingSubmitted;
         request.fiber_temporary_channel_id = Some(built.tx_hash.clone());
         request.fiber_note = Some(

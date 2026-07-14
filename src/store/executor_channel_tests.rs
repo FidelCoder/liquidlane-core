@@ -19,6 +19,26 @@ mod tests {
     }
 
     #[test]
+    fn usable_channel_matches_handoff_ref_as_channel_id() {
+        let mut request = request(207);
+        request.fiber_temporary_channel_id = Some("0xhandoff".to_string());
+        let channel = FiberChannel {
+            channel_id: Some("0xhandoff".to_string()),
+            temporary_channel_id: None,
+            peer_pubkey: Some("03peer".to_string()),
+            amount_ckb: Some(51),
+            funding_tx_hash: None,
+            funding_out_point: None,
+            settlement_tx_hash: None,
+            is_usable: true,
+            is_closed: false,
+            is_failed: false,
+        };
+
+        assert!(channel_matches_request(&request, &[], &channel));
+    }
+
+    #[test]
     fn peer_match_requires_exact_reserved_amount() {
         let request = request(200);
         let wrong_amount = channel(None, Some("03peer"), Some(100), true, false);

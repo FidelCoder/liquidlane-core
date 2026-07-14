@@ -5,6 +5,9 @@ use uuid::Uuid;
 
 use super::CkbScript;
 
+pub const RECEIVER_NODE_RESERVE_MIN_CKB: u64 = 99;
+pub const RECEIVER_NODE_RESERVE_RECOMMENDED_CKB: u64 = 150;
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct CreateLiquidityRequest {
     pub asset: String,
@@ -63,6 +66,8 @@ pub struct LiquidityQuote {
     pub amount: u64,
     pub duration_days: u16,
     pub lease_fee: u64,
+    pub receiver_node_reserve_min: u64,
+    pub receiver_node_reserve_recommended: u64,
     pub routing_fee_bps: u16,
     pub available: bool,
     pub available_liquidity: u64,
@@ -150,5 +155,5 @@ pub enum LiquidityStatus {
 }
 
 fn default_public_channel() -> bool {
-    true
+    false
 }

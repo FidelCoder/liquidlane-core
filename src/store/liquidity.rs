@@ -13,7 +13,8 @@ use super::{
 };
 use crate::domain::{
     ActivityEvent, CapacityReservation, CreateLiquidityRequest, IntentStatus, LiquidityQuote,
-    LiquidityRequest, LiquidityStatus, RequestIntent, ReservationStatus, User, UserRole,
+    LiquidityRequest, LiquidityStatus, RECEIVER_NODE_RESERVE_MIN_CKB,
+    RECEIVER_NODE_RESERVE_RECOMMENDED_CKB, RequestIntent, ReservationStatus, User, UserRole,
 };
 
 impl AppStore {
@@ -42,6 +43,8 @@ impl AppStore {
             amount: request.amount,
             duration_days: request.duration_days,
             lease_fee: lease_fee(request.amount, request.duration_days),
+            receiver_node_reserve_min: RECEIVER_NODE_RESERVE_MIN_CKB,
+            receiver_node_reserve_recommended: RECEIVER_NODE_RESERVE_RECOMMENDED_CKB,
             routing_fee_bps: 30,
             available: available_liquidity >= request.amount,
             available_liquidity,
@@ -104,7 +107,7 @@ impl AppStore {
             routing_fee_bps: quote.routing_fee_bps,
             fiber_peer_pubkey: normalize_optional(&request.fiber_peer_pubkey),
             fiber_peer_address: normalize_optional(&request.fiber_peer_address),
-            public_channel: request.public_channel.unwrap_or(true),
+            public_channel: request.public_channel.unwrap_or(false),
             funding_udt_type_script: request.funding_udt_type_script.clone(),
             request_cell_id: intent
                 .as_ref()
@@ -200,7 +203,7 @@ fn require_intent_matches(
         && intent.routing_fee_bps == quote.routing_fee_bps
         && intent.fiber_peer_pubkey == normalize_optional(&request.fiber_peer_pubkey)
         && intent.fiber_peer_address == normalize_optional(&request.fiber_peer_address)
-        && intent.public_channel == request.public_channel.unwrap_or(true);
+        && intent.public_channel == request.public_channel.unwrap_or(false);
     if same_request {
         Ok(())
     } else {
