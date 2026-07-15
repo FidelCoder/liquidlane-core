@@ -3,6 +3,7 @@ use serde_json::Value;
 
 use super::{
     AppStore,
+    chain_request_payment::require_receiver_reserve_payment,
     chain_types::{
         ChainOutput, ChainScript, array, hex_index, output_at, outputs, parse_request_data,
         parse_vault_data, required_hash, script_from_address, script_hash, string_field,
@@ -60,6 +61,7 @@ impl AppStore {
             request_cell(&transaction, &operator_lock, &request_type_code)?;
         require_request_identity(&output, vault_type, &merchant_lock, &operator_lock, request)?;
         require_request_data(&output, request)?;
+        require_receiver_reserve_payment(&transaction, request)?;
         require_declared_out_point(request, tx_hash, request_index)?;
         Ok(())
     }

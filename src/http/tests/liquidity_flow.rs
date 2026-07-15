@@ -69,7 +69,7 @@ async fn create_capacity_request(app: axum::Router, token: &str) -> serde_json::
                 .header(header::CONTENT_TYPE, "application/json")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::from(
-                    json!({"asset":"CKB","amount":3000,"duration_days":30}).to_string(),
+                    json!({"asset":"CKB","amount":3000,"duration_days":30,"receiver_ckb_address":"ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqwh04ftzgcaymffpf245m0rjvd30x4s3rgt9e64s"}).to_string(),
                 ))
                 .unwrap(),
         )

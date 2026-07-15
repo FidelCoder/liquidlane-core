@@ -5,21 +5,22 @@ use reqwest::Client;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
-const SHANNONS_PER_CKB: u128 = 100_000_000;
-
-use crate::domain::{CkbScript, LiquidityRequest};
+use crate::domain::LiquidityRequest;
 
 mod channel;
 mod external;
+mod utils;
 pub use channel::FiberChannel;
 use channel::channel_from_value;
 #[allow(unused_imports)]
 pub use external::{FiberExternalFundingOutcome, FiberExternalFundingParams};
+use utils::{funding_amount_hex, non_empty, script_to_value, string_field};
 
 #[derive(Clone)]
 pub struct FiberClient {
     rpc_url: Option<String>,
     auth_token: Option<String>,
+    funding_fee_rate: u64,
     http: Client,
 }
 
@@ -45,7 +46,7 @@ struct JsonRpcError {
 }
 
 impl FiberClient {
-    pub fn new(rpc_url: Option<String>, auth_token: Option<String>) -> Self {
+    pub fn new(rpc_url: Option<String>, auth_token: Option<String>, funding_fee_rate: u64) -> Self {
         let http = Client::builder()
             .timeout(Duration::from_secs(75))
             .build()
@@ -53,13 +54,14 @@ impl FiberClient {
         Self {
             rpc_url: rpc_url.and_then(non_empty),
             auth_token: auth_token.and_then(non_empty),
+            funding_fee_rate: funding_fee_rate.max(1_000),
             http,
         }
     }
 
     #[cfg(test)]
     pub fn disabled() -> Self {
-        Self::new(None, None)
+        Self::new(None, None, 2_000)
     }
 
     pub fn is_configured(&self) -> bool {
@@ -121,7 +123,11 @@ impl FiberClient {
             Value::String(funding_amount_hex(&request.asset, request.amount)?),
         );
         params.insert("public".to_string(), json!(false));
-        params.insert("one_way".to_string(), json!(false));
+        params.insert("one_way".to_string(), json!(true));
+        params.insert(
+            "funding_fee_rate".to_string(),
+            Value::String(format!("0x{:x}", self.funding_fee_rate)),
+        );
         if let Some(script) = request.funding_udt_type_script.as_ref() {
             params.insert(
                 "funding_udt_type_script".to_string(),
@@ -280,39 +286,6 @@ impl FiberClient {
 
         Ok(envelope.result.unwrap_or(Value::Null))
     }
-}
-
-fn non_empty(value: String) -> Option<String> {
-    let value = value.trim().to_string();
-    (!value.is_empty()).then_some(value)
-}
-
-fn funding_amount_hex(asset: &str, amount: u64) -> Result<String> {
-    let amount = u128::from(amount);
-    let funding_amount = if asset == "CKB" {
-        amount
-            .checked_mul(SHANNONS_PER_CKB)
-            .ok_or_else(|| anyhow!("fiber CKB funding amount overflow"))?
-    } else {
-        amount
-    };
-    Ok(format!("0x{funding_amount:x}"))
-}
-
-fn string_field(value: &Value, field: &str) -> Option<String> {
-    value
-        .get(field)
-        .and_then(Value::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .map(ToString::to_string)
-}
-
-fn script_to_value(script: &CkbScript) -> Value {
-    json!({
-        "code_hash": script.code_hash,
-        "hash_type": script.hash_type,
-        "args": script.args,
-    })
 }
 
 #[cfg(test)]

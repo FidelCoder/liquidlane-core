@@ -12,6 +12,7 @@ pub struct AppConfig {
     pub data_path: PathBuf,
     pub fiber_rpc_url: Option<String>,
     pub fiber_rpc_auth_token: Option<String>,
+    pub fiber_funding_fee_rate: u64,
     pub ckb_rpc_url: Option<String>,
     pub ckb_accept_pending_txs: bool,
     pub require_ckb_rpc: bool,
@@ -21,6 +22,7 @@ pub struct AppConfig {
     pub executor_funding_mode: String,
     pub vault_funding_builder_enabled: bool,
     pub vault_funding_signer_enabled: bool,
+    pub vault_funding_signer_private_key: Option<String>,
     pub ckb_script_build_dir: PathBuf,
     pub cors_allowed_origin: Option<String>,
     pub vault: VaultConfig,
@@ -40,6 +42,7 @@ impl AppConfig {
         let fiber_rpc_auth_token = env::var("FIBER_RPC_AUTH_TOKEN")
             .ok()
             .filter(|value| !value.trim().is_empty());
+        let fiber_funding_fee_rate = u64_env("LIQUIDLANE_FIBER_FUNDING_FEE_RATE", 2_000)?;
         let ckb_rpc_url = optional_env("LIQUIDLANE_CKB_RPC_URL");
         let ckb_network = env::var("LIQUIDLANE_CKB_NETWORK")
             .unwrap_or_else(|_| "testnet".to_string())
@@ -61,6 +64,13 @@ impl AppConfig {
             .or_else(|| optional_env("CKB_DEPLOYER_ADDRESS"))
             .map(validate_executor_address)
             .transpose()?;
+        let deployer_address = optional_env("CKB_DEPLOYER_ADDRESS");
+        let deployer_private_key = optional_env("CKB_DEPLOYER_PRIVATE_KEY");
+        let vault_funding_signer_private_key = vault_funding_signer_private_key(
+            &executor_address,
+            &deployer_address,
+            deployer_private_key,
+        );
         let vault_cell_out_point = optional_env("LIQUIDLANE_VAULT_CELL_OUT_POINT")
             .map(validate_out_point)
             .transpose()?;
@@ -120,6 +130,7 @@ impl AppConfig {
             data_path,
             fiber_rpc_url,
             fiber_rpc_auth_token,
+            fiber_funding_fee_rate,
             ckb_rpc_url,
             ckb_accept_pending_txs,
             require_ckb_rpc,
@@ -129,6 +140,7 @@ impl AppConfig {
             executor_funding_mode,
             vault_funding_builder_enabled,
             vault_funding_signer_enabled,
+            vault_funding_signer_private_key,
             ckb_script_build_dir,
             cors_allowed_origin,
             vault,
@@ -146,6 +158,19 @@ fn optional_env(key: &str) -> Option<String> {
 fn production_fiber_rpc_url(environment: &str) -> Option<String> {
     (environment.trim().eq_ignore_ascii_case("production"))
         .then(|| "https://liquidlane-fiber.onrender.com".to_string())
+}
+
+fn vault_funding_signer_private_key(
+    executor_address: &Option<String>,
+    deployer_address: &Option<String>,
+    deployer_private_key: Option<String>,
+) -> Option<String> {
+    optional_env("LIQUIDLANE_EXECUTOR_PRIVATE_KEY")
+        .or_else(|| optional_env("LIQUIDLANE_VAULT_FUNDING_PRIVATE_KEY"))
+        .or_else(|| {
+            (executor_address.as_deref() == deployer_address.as_deref()).then_some(())?;
+            deployer_private_key
+        })
 }
 
 fn ckb_accept_pending_txs(network: &str) -> anyhow::Result<bool> {

@@ -166,6 +166,10 @@ fn require_capacity_delta(args: &Args, auth: &PathAuth) -> ScriptResult<()> {
         return Ok(());
     }
     let delta = input_capacity - output_capacity;
+    let request_limit = max_field_sum(&args.request_type, REQUEST_AMOUNT_OFFSET, REQUEST_DATA_LEN)?;
+    if auth.request && delta <= ckb_to_shannons(request_limit)? {
+        return Ok(());
+    }
     let funding_limit = max_field_sum(
         &args.funding_intent_type,
         FUNDING_AMOUNT_OFFSET,
@@ -230,7 +234,7 @@ fn require_request_lock_delta(
     }
     let input_locked = checked_sum(&[input.reserved, input.deployed])?;
     let output_locked = checked_sum(&[output.reserved, output.deployed])?;
-    let delta = abs_delta(input_locked, output_locked);
+    let delta = input_locked.abs_diff(output_locked);
     let request_limit = max_field_sum(&args.request_type, REQUEST_AMOUNT_OFFSET, REQUEST_DATA_LEN)?;
     if delta <= request_limit {
         return Ok(());
@@ -289,10 +293,6 @@ fn require_same_delta(
         }
         _ => Err(ScriptError::ValueMismatch),
     }
-}
-
-fn abs_delta(left: u64, right: u64) -> u64 {
-    left.abs_diff(right)
 }
 
 fn ckb_to_shannons(amount: u64) -> ScriptResult<u64> {

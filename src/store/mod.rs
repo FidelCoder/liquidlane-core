@@ -5,11 +5,15 @@ mod chain_deposit;
 mod chain_fee_claim;
 mod chain_fee_guard;
 mod chain_request;
+mod chain_request_payment;
+#[cfg(test)]
+mod chain_request_payment_tests;
 mod chain_settlement;
 mod chain_types;
 mod dashboard;
 mod executor;
 mod executor_channel;
+mod executor_channel_match;
 #[cfg(test)]
 mod executor_channel_tests;
 mod fiber_funding_builder;
@@ -80,6 +84,7 @@ pub struct AppStore {
     executor_funding_mode: String,
     vault_funding_builder_enabled: bool,
     vault_funding_signer_enabled: bool,
+    vault_funding_signer_private_key: Option<String>,
     inner: RwLock<StoreState>,
 }
 
@@ -127,6 +132,7 @@ impl AppStore {
         executor_funding_mode: String,
         vault_funding_builder_enabled: bool,
         vault_funding_signer_enabled: bool,
+        vault_funding_signer_private_key: Option<String>,
     ) -> Result<Self> {
         let state = match tokio::fs::read_to_string(&path).await {
             Ok(contents) => serde_json::from_str(&contents)?,
@@ -146,6 +152,7 @@ impl AppStore {
             executor_funding_mode: normalize_executor_funding_mode(&executor_funding_mode),
             vault_funding_builder_enabled,
             vault_funding_signer_enabled,
+            vault_funding_signer_private_key,
             inner: RwLock::new(state),
         })
     }
@@ -163,6 +170,7 @@ impl AppStore {
             executor_funding_mode: crate::domain::FUNDING_MODE_VAULT_EXTERNAL.to_string(),
             vault_funding_builder_enabled: false,
             vault_funding_signer_enabled: false,
+            vault_funding_signer_private_key: None,
             vault: VaultConfig {
                 asset: "CKB".to_string(),
                 address: Some("ckt1qpkp7qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq".to_string()),

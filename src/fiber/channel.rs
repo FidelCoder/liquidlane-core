@@ -4,10 +4,14 @@ use serde_json::Value;
 pub struct FiberChannel {
     pub channel_id: Option<String>,
     pub temporary_channel_id: Option<String>,
+    #[allow(dead_code)]
     pub peer_pubkey: Option<String>,
+    #[allow(dead_code)]
     pub amount_ckb: Option<u64>,
     pub funding_tx_hash: Option<String>,
     pub funding_out_point: Option<String>,
+    pub funding_input_out_points: Vec<String>,
+    #[allow(dead_code)]
     pub settlement_tx_hash: Option<String>,
     pub is_usable: bool,
     pub is_closed: bool,
@@ -34,11 +38,21 @@ pub(super) fn channel_from_value(value: &Value) -> FiberChannel {
     );
     let amount_ckb =
         string_field_any(value, &["funding_amount", "local_balance"]).and_then(hex_shannons_to_ckb);
-    let funding_tx_hash = string_field_any(value, &["funding_tx_hash", "funding_txid", "tx_hash"]);
     let funding_out_point = string_field_any(
         value,
-        &["funding_out_point", "funding_outpoint", "out_point"],
+        &[
+            "funding_out_point",
+            "funding_outpoint",
+            "channel_outpoint",
+            "out_point",
+        ],
     );
+    let funding_tx_hash = string_field_any(value, &["funding_tx_hash", "funding_txid", "tx_hash"])
+        .or_else(|| {
+            funding_out_point
+                .as_deref()
+                .and_then(packed_out_point_tx_hash)
+        });
     let settlement_tx_hash = string_field_any(
         value,
         &["settlement_tx_hash", "closing_tx_hash", "close_tx_hash"],
@@ -55,6 +69,7 @@ pub(super) fn channel_from_value(value: &Value) -> FiberChannel {
         amount_ckb,
         funding_tx_hash,
         funding_out_point,
+        funding_input_out_points: Vec::new(),
         settlement_tx_hash,
         is_usable,
         is_closed,
@@ -97,6 +112,14 @@ fn channel_failed(state: Option<&str>) -> bool {
     ["failed", "abandoned", "aborted"]
         .iter()
         .any(|needle| state.contains(needle))
+}
+
+fn packed_out_point_tx_hash(value: &str) -> Option<String> {
+    if let Some((hash, _)) = value.split_once('#') {
+        return Some(hash.to_string());
+    }
+    let raw = value.strip_prefix("0x")?;
+    (raw.len() >= 64).then(|| format!("0x{}", &raw[..64]))
 }
 
 fn hex_shannons_to_ckb(value: String) -> Option<u64> {

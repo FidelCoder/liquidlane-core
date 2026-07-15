@@ -6,6 +6,8 @@ set -eu
 BASE_DIR="${FIBER_BASE_DIR:-/fiber}"
 RPC_PORT="${PORT:-8227}"
 P2P_PORT="${FIBER_P2P_PORT:-8228}"
+P2P_LISTENING_ADDR="${FIBER_P2P_LISTENING_ADDR:-/ip4/0.0.0.0/tcp/${P2P_PORT}}"
+FIBER_NODE_NAME="${FIBER_NODE_NAME:-liquidlane-testnet}"
 RPC_LISTENING_ADDR="${RPC_LISTENING_ADDR:-0.0.0.0:${RPC_PORT}}"
 CKB_RPC_URL="${FIBER_CKB_RPC_URL:-https://testnet.ckb.dev/rpc}"
 LIQUIDLANE_FUNDING_BUILDER_URL="${LIQUIDLANE_CORE_FUNDING_BUILDER_URL:-${FIBER_LIQUIDLANE_FUNDING_BUILDER_URL:-}}"
@@ -30,7 +32,7 @@ if [ ! -s "$payload" ]; then
   exit 1
 fi
 
-code="$(curl -sS -o "$response" -w '%{http_code}' --connect-timeout "${FIBER_FUNDING_BUILDER_CONNECT_TIMEOUT_SECONDS:-5}" --max-time "${FIBER_FUNDING_BUILDER_HTTP_TIMEOUT_SECONDS:-30}" -H 'content-type: application/json' --data-binary @"$payload" "$LIQUIDLANE_FUNDING_BUILDER_URL")"
+code="$(curl -sS -o "$response" -w '%{http_code}' --connect-timeout "${FIBER_FUNDING_BUILDER_CONNECT_TIMEOUT_SECONDS:-5}" --max-time "${FIBER_FUNDING_BUILDER_HTTP_TIMEOUT_SECONDS:-120}" -H 'content-type: application/json' --data-binary @"$payload" "$LIQUIDLANE_FUNDING_BUILDER_URL")"
 if [ "$code" != "200" ]; then
   cat "$response" >&2
   exit 1
@@ -50,21 +52,31 @@ if [ -n "${FIBER_FUNDING_TX_SHELL_BUILDER:-}" ]; then
   FUNDING_TX_SHELL_BUILDER_CONFIG="  funding_tx_shell_builder: \"$FIBER_FUNDING_TX_SHELL_BUILDER\""
 fi
 
+mkdir -p "$BASE_DIR/fiber"
+if [ -n "${FIBER_SECRET_KEY_B64:-}" ] && [ ! -s "$BASE_DIR/fiber/sk" ]; then
+  printf "%s" "$FIBER_SECRET_KEY_B64" | base64 -d > "$BASE_DIR/fiber/sk"
+fi
+chmod 600 "$BASE_DIR/fiber/sk" 2>/dev/null || true
+
 mkdir -p "$BASE_DIR/ckb"
 if [ -n "${FIBER_CKB_PRIVATE_KEY_B64:-}" ] && [ ! -s "$BASE_DIR/ckb/key" ]; then
   printf "%s" "$FIBER_CKB_PRIVATE_KEY_B64" | base64 -d > "$BASE_DIR/ckb/key"
 elif [ -n "${FIBER_CKB_PRIVATE_KEY:-}" ] && [ ! -s "$BASE_DIR/ckb/key" ]; then
-  printf "%s" "$FIBER_CKB_PRIVATE_KEY" > "$BASE_DIR/ckb/key"
+  printf "%s" "$FIBER_CKB_PRIVATE_KEY" | sed 's/^0x//' > "$BASE_DIR/ckb/key"
 elif [ ! -s "$BASE_DIR/ckb/key" ]; then
   echo "FIBER_CKB_PRIVATE_KEY_B64 is not set; generating an unfunded ephemeral testnet key."
   openssl rand -hex 32 > "$BASE_DIR/ckb/key"
+fi
+if [ "$(wc -c < "$BASE_DIR/ckb/key")" -eq 66 ] && [ "$(head -c 2 "$BASE_DIR/ckb/key")" = "0x" ]; then
+  tail -c +3 "$BASE_DIR/ckb/key" > "$BASE_DIR/ckb/key.normalized"
+  mv "$BASE_DIR/ckb/key.normalized" "$BASE_DIR/ckb/key"
 fi
 chmod 600 "$BASE_DIR/ckb/key" || true
 
 cat > "$BASE_DIR/config.yml" <<EOF
 fiber:
-  listening_addr: "/ip4/0.0.0.0/tcp/${P2P_PORT}"
-  announced_node_name: "liquidlane-testnet-render"
+  listening_addr: "${P2P_LISTENING_ADDR}"
+  announced_node_name: "${FIBER_NODE_NAME}"
   bootnode_addrs:
     - "/ip4/54.179.226.154/tcp/8228/p2p/Qmes1EBD4yNo9Ywkfe6eRw9tG1nVNGLDmMud1xJMsoYFKy"
     - "/ip4/16.163.7.105/tcp/8228/p2p/QmdyQWjPtbK4NWWsvy8s69NGJaQULwgeQDT5ZpNDrTNaeV"

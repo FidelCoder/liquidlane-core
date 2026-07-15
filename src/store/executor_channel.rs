@@ -1,30 +1,36 @@
 use anyhow::Result;
-use chrono::{DateTime, Duration, Utc};
+use chrono::Utc;
 use uuid::Uuid;
 
+use super::executor_channel_match::{
+    matching_failed_channel, matching_settled_channel, matching_usable_channel,
+};
 use super::{
-    AppStore, accounting::settle_positions, liquidity_deploy::update_reservation_and_positions,
-};
-use crate::{
-    domain::{
-        ActivityEvent, ExecutorJobStatus, ExternalFundingIntent, ExternalFundingIntentStatus,
-        LiquidityRequest, LiquidityStatus,
+    AppStore,
+    accounting::settle_positions,
+    executor_channel_match::{
+        funding_builder_timed_out, funding_negotiation_timed_out, funding_tx_timed_out,
+        mark_intent_channel_active, matching_usable_channel_exact, record_final_funding,
+        refresh_active_funding,
     },
-    fiber::FiberChannel,
+    liquidity_deploy::update_reservation_and_positions,
 };
-
-const FUNDING_TX_TIMEOUT: Duration = Duration::minutes(2);
+use crate::domain::{
+    ActivityEvent, ExecutorJobStatus, ExternalFundingIntentStatus, LiquidityStatus,
+};
 
 impl AppStore {
     pub async fn sync_fiber_channels(&self) -> Result<usize> {
         if !self.fiber.is_configured() {
             return Ok(0);
         }
-        let channels = self.fiber.list_channels().await?;
+        let mut channels = self.fiber.list_channels().await?;
+        self.enrich_channel_funding_inputs(&mut channels).await;
 
         let now = Utc::now();
         let mut state = self.inner.write().await;
         let mut opened = Vec::new();
+        let mut refreshed = Vec::new();
         let mut settled = Vec::new();
         let mut failed = Vec::new();
         let intents = state.external_funding_intents.clone();
@@ -32,6 +38,7 @@ impl AppStore {
             if request.status == LiquidityStatus::ChannelOpen {
                 if let Some(channel) = matching_settled_channel(request, &intents, &channels) {
                     request.status = LiquidityStatus::Settled;
+                    record_final_funding(request, channel);
                     request.channel_id = channel
                         .channel_id
                         .clone()
@@ -46,27 +53,35 @@ impl AppStore {
                     settled.push(request.clone());
                     continue;
                 }
+                if refresh_active_funding(request, &intents, &channels, now) {
+                    refreshed.push(request.clone());
+                }
             }
 
-            if matches!(
-                request.status,
-                LiquidityStatus::FundingSubmitted | LiquidityStatus::PendingFiberChannel
-            ) {
-                if let Some(channel) = matching_usable_channel(request, &intents, &channels) {
-                    request.status = LiquidityStatus::ChannelOpen;
-                    request.channel_id = channel
-                        .channel_id
-                        .clone()
-                        .or_else(|| request.channel_id.clone())
-                        .or_else(|| request.fiber_temporary_channel_id.clone());
-                    request.fiber_error = None;
-                    request.fiber_note = Some(
-                        "Fiber channel confirmed. Merchant receive capacity is active.".to_string(),
-                    );
-                    request.updated_at = now;
-                    opened.push(request.clone());
-                    continue;
+            let usable_channel = match request.status {
+                LiquidityStatus::FundingSubmitted | LiquidityStatus::PendingFiberChannel => {
+                    matching_usable_channel(request, &intents, &channels)
                 }
+                LiquidityStatus::Failed => {
+                    matching_usable_channel_exact(request, &intents, &channels)
+                }
+                _ => None,
+            };
+            if let Some(channel) = usable_channel {
+                request.status = LiquidityStatus::ChannelOpen;
+                record_final_funding(request, channel);
+                request.channel_id = channel
+                    .channel_id
+                    .clone()
+                    .or_else(|| request.channel_id.clone())
+                    .or_else(|| request.fiber_temporary_channel_id.clone());
+                request.fiber_error = None;
+                request.fiber_note = Some(
+                    "Fiber channel confirmed. Merchant receive capacity is active.".to_string(),
+                );
+                request.updated_at = now;
+                opened.push(request.clone());
+                continue;
             }
 
             if matches!(
@@ -170,6 +185,7 @@ impl AppStore {
                     .or_else(|| request.fiber_temporary_channel_id.clone());
                 job.updated_at = now;
             }
+            mark_intent_channel_active(&mut state, request, now);
             state.events.insert(
                 0,
                 ActivityEvent {
@@ -181,6 +197,10 @@ impl AppStore {
                     created_at: now,
                 },
             );
+        }
+
+        for request in &refreshed {
+            mark_intent_channel_active(&mut state, request, now);
         }
 
         for request in &settled {
@@ -269,149 +289,10 @@ impl AppStore {
             );
         }
 
-        let changed = opened.len() + settled.len() + failed.len();
+        let changed = opened.len() + refreshed.len() + settled.len() + failed.len();
         if changed > 0 {
             self.persist_locked(&state).await?;
         }
         Ok(changed)
     }
-}
-
-fn funding_builder_timed_out(
-    request: &LiquidityRequest,
-    intents: &[ExternalFundingIntent],
-    now: DateTime<Utc>,
-) -> bool {
-    let Some(intent) = intents
-        .iter()
-        .find(|intent| intent.request_id == request.id)
-    else {
-        return now.signed_duration_since(request.updated_at) >= FUNDING_TX_TIMEOUT;
-    };
-    if intent.status != ExternalFundingIntentStatus::BuilderRequired {
-        return false;
-    }
-    if intent.funding_tx_hash.is_some() || intent.funding_out_point.is_some() {
-        return false;
-    }
-    now.signed_duration_since(intent.updated_at) >= FUNDING_TX_TIMEOUT
-}
-
-fn funding_tx_timed_out(
-    request: &LiquidityRequest,
-    intents: &[ExternalFundingIntent],
-    now: DateTime<Utc>,
-) -> bool {
-    let Some(intent) = intents
-        .iter()
-        .find(|intent| intent.request_id == request.id)
-    else {
-        return false;
-    };
-    if intent.status != ExternalFundingIntentStatus::FundingSubmitted {
-        return false;
-    }
-    if intent.funding_tx_hash.is_some() {
-        return false;
-    }
-    now.signed_duration_since(intent.updated_at) >= FUNDING_TX_TIMEOUT
-}
-
-fn funding_negotiation_timed_out(
-    request: &LiquidityRequest,
-    intents: &[ExternalFundingIntent],
-    channels: &[FiberChannel],
-    now: DateTime<Utc>,
-) -> bool {
-    if now.signed_duration_since(request.updated_at) < FUNDING_TX_TIMEOUT {
-        return false;
-    }
-    matching_unfunded_channel(request, intents, channels).is_some()
-}
-
-fn matching_unfunded_channel<'a>(
-    request: &LiquidityRequest,
-    intents: &[ExternalFundingIntent],
-    channels: &'a [FiberChannel],
-) -> Option<&'a FiberChannel> {
-    channels.iter().find(|channel| {
-        !channel.is_usable
-            && !channel.is_failed
-            && !channel.is_closed
-            && channel.funding_tx_hash.is_none()
-            && channel.funding_out_point.is_none()
-            && channel_matches_request(request, intents, channel)
-    })
-}
-
-pub(super) fn matching_usable_channel<'a>(
-    request: &LiquidityRequest,
-    intents: &[ExternalFundingIntent],
-    channels: &'a [FiberChannel],
-) -> Option<&'a FiberChannel> {
-    channels
-        .iter()
-        .find(|channel| channel.is_usable && channel_matches_request(request, intents, channel))
-}
-
-pub(super) fn matching_settled_channel<'a>(
-    request: &LiquidityRequest,
-    intents: &[ExternalFundingIntent],
-    channels: &'a [FiberChannel],
-) -> Option<&'a FiberChannel> {
-    channels.iter().find(|channel| {
-        channel.is_closed
-            && !channel.is_failed
-            && channel_matches_request(request, intents, channel)
-    })
-}
-
-pub(super) fn matching_failed_channel<'a>(
-    request: &LiquidityRequest,
-    intents: &[ExternalFundingIntent],
-    channels: &'a [FiberChannel],
-) -> Option<&'a FiberChannel> {
-    channels
-        .iter()
-        .find(|channel| channel.is_failed && channel_matches_request(request, intents, channel))
-}
-
-pub(super) fn channel_matches_request(
-    request: &LiquidityRequest,
-    intents: &[ExternalFundingIntent],
-    channel: &FiberChannel,
-) -> bool {
-    let intent = intents
-        .iter()
-        .find(|intent| intent.request_id == request.id);
-    intent.is_some_and(|intent| {
-        matches_ref(
-            channel.funding_tx_hash.as_deref(),
-            intent.funding_tx_hash.as_deref(),
-        ) || matches_ref(
-            channel.funding_out_point.as_deref(),
-            intent.funding_out_point.as_deref(),
-        )
-    }) || matches_ref(channel.channel_id.as_deref(), request.channel_id.as_deref())
-        || matches_ref(
-            channel.channel_id.as_deref(),
-            request.fiber_temporary_channel_id.as_deref(),
-        )
-        || matches_ref(
-            channel.temporary_channel_id.as_deref(),
-            request.fiber_temporary_channel_id.as_deref(),
-        )
-        || request
-            .fiber_peer_pubkey
-            .as_deref()
-            .zip(channel.peer_pubkey.as_deref())
-            .is_some_and(|(request_peer, channel_peer)| {
-                request_peer.eq_ignore_ascii_case(channel_peer)
-                    && channel.amount_ckb == Some(request.amount)
-            })
-}
-
-fn matches_ref(left: Option<&str>, right: Option<&str>) -> bool {
-    left.zip(right)
-        .is_some_and(|(left, right)| !left.is_empty() && left.eq_ignore_ascii_case(right))
 }

@@ -5,8 +5,10 @@ use uuid::Uuid;
 
 use super::CkbScript;
 
+pub const MIN_CKB_CHANNEL_CAPACITY_CKB: u64 = 200;
 pub const RECEIVER_NODE_RESERVE_MIN_CKB: u64 = 99;
-pub const RECEIVER_NODE_RESERVE_RECOMMENDED_CKB: u64 = 150;
+pub const RECEIVER_NODE_RESERVE_PAYMENT_CKB: u64 = 101;
+pub const REQUEST_CELL_BOND_CKB: u64 = 250;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct CreateLiquidityRequest {
@@ -19,6 +21,8 @@ pub struct CreateLiquidityRequest {
     pub fiber_peer_pubkey: Option<String>,
     #[serde(default)]
     pub fiber_peer_address: Option<String>,
+    #[serde(default)]
+    pub receiver_ckb_address: Option<String>,
     #[serde(default)]
     pub public_channel: Option<bool>,
     #[serde(default)]
@@ -64,10 +68,14 @@ pub struct SettleLiquidityRequest {
 pub struct LiquidityQuote {
     pub asset: String,
     pub amount: u64,
+    pub estimated_usable_capacity: u64,
     pub duration_days: u16,
     pub lease_fee: u64,
     pub receiver_node_reserve_min: u64,
-    pub receiver_node_reserve_recommended: u64,
+    pub receiver_node_reserve_payment: u64,
+    pub request_cell_bond: u64,
+    pub receiver_ckb_address: Option<String>,
+    pub minimum_channel_capacity: u64,
     pub routing_fee_bps: u16,
     pub available: bool,
     pub available_liquidity: u64,
@@ -88,6 +96,10 @@ pub struct RequestIntent {
     pub fiber_peer_pubkey: Option<String>,
     #[serde(default)]
     pub fiber_peer_address: Option<String>,
+    #[serde(default)]
+    pub receiver_ckb_address: Option<String>,
+    #[serde(default)]
+    pub receiver_reserve_payment: u64,
     #[serde(default = "default_public_channel")]
     pub public_channel: bool,
     #[serde(default)]
@@ -110,6 +122,8 @@ pub struct LiquidityRequest {
     pub ckb_address: String,
     pub asset: String,
     pub amount: u64,
+    #[serde(default)]
+    pub usable_capacity: u64,
     pub duration_days: u16,
     pub lease_fee: u64,
     pub routing_fee_bps: u16,
@@ -117,6 +131,10 @@ pub struct LiquidityRequest {
     pub fiber_peer_pubkey: Option<String>,
     #[serde(default)]
     pub fiber_peer_address: Option<String>,
+    #[serde(default)]
+    pub receiver_ckb_address: Option<String>,
+    #[serde(default)]
+    pub receiver_reserve_payment: u64,
     #[serde(default = "default_public_channel")]
     pub public_channel: bool,
     #[serde(default)]
@@ -127,6 +145,10 @@ pub struct LiquidityRequest {
     pub request_tx_hash: Option<String>,
     #[serde(default)]
     pub request_cell_out_point: Option<String>,
+    #[serde(default)]
+    pub funding_tx_hash: Option<String>,
+    #[serde(default)]
+    pub funding_out_point: Option<String>,
     pub status: LiquidityStatus,
     #[serde(default)]
     pub fiber_temporary_channel_id: Option<String>,

@@ -3,7 +3,7 @@ use chrono::Utc;
 
 use crate::domain::{
     ActivityEvent, CkbScript, CreateDepositRequest, CreateLiquidityRequest, Deposit, IntentStatus,
-    User, UserRole, VaultConfig, is_plausible_ckb_address,
+    MIN_CKB_CHANNEL_CAPACITY_CKB, User, UserRole, VaultConfig, is_plausible_ckb_address,
 };
 
 pub(super) fn ensure_vault_configured(vault: &VaultConfig) -> Result<()> {
@@ -157,6 +157,24 @@ pub(super) fn validate_liquidity_request(request: &CreateLiquidityRequest) -> Re
     validate_required("asset", &request.asset)?;
     if request.duration_days == 0 {
         return Err(anyhow!("duration_days must be greater than zero"));
+    }
+    if request.asset.trim().eq_ignore_ascii_case("CKB")
+        && request.amount < MIN_CKB_CHANNEL_CAPACITY_CKB
+    {
+        return Err(anyhow!(
+            "CKB receive capacity must be at least {MIN_CKB_CHANNEL_CAPACITY_CKB} CKB"
+        ));
+    }
+    let receiver_address = request
+        .receiver_ckb_address
+        .as_deref()
+        .map(str::trim)
+        .filter(|address| !address.is_empty())
+        .ok_or_else(|| anyhow!("receiver_ckb_address is required"))?;
+    if !receiver_address.starts_with("ckt1") || !is_plausible_ckb_address(receiver_address) {
+        return Err(anyhow!(
+            "receiver_ckb_address must be a valid CKB testnet address"
+        ));
     }
     if let Some(pubkey) = request.fiber_peer_pubkey.as_deref().map(str::trim)
         && !pubkey.is_empty()

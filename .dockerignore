@@ -1,0 +1,8 @@
+.git
+.env
+.env.*
+target
+ckb-scripts/target
+ckb-scripts/build
+liquidlane-data.json
+*.log

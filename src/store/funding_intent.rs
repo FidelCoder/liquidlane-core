@@ -17,7 +17,8 @@ impl AppStore {
         let fiber_rpc_configured = self.fiber.is_configured();
         let v2_scripts_configured = v2_scripts_configured(&vault);
         let funding_tx_builder_ready = self.vault_funding_builder_enabled;
-        let funding_signer_ready = self.vault_funding_signer_enabled;
+        let funding_signer_configured = self.vault_funding_signer_private_key.is_some();
+        let funding_signer_ready = self.vault_funding_signer_enabled && funding_signer_configured;
         let mut blockers = Vec::new();
 
         if !supported {
@@ -39,9 +40,11 @@ impl AppStore {
             blockers
                 .push("Vault-funded CKB funding transaction builder is not enabled.".to_string());
         }
-        if !funding_signer_ready {
+        if !self.vault_funding_signer_enabled {
             blockers
                 .push("Vault funding signer is not enabled for testnet submission.".to_string());
+        } else if !funding_signer_configured {
+            blockers.push("Vault funding signer private key is not configured.".to_string());
         }
 
         let ready = supported
