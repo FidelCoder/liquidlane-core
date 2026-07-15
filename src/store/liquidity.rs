@@ -13,8 +13,9 @@ use super::{
 };
 use crate::domain::{
     ActivityEvent, CapacityReservation, CreateLiquidityRequest, IntentStatus, LiquidityQuote,
-    LiquidityRequest, LiquidityStatus, RECEIVER_NODE_RESERVE_MIN_CKB,
-    RECEIVER_NODE_RESERVE_RECOMMENDED_CKB, RequestIntent, ReservationStatus, User, UserRole,
+    LiquidityRequest, LiquidityStatus, MIN_CKB_CHANNEL_CAPACITY_CKB, RECEIVER_NODE_RESERVE_MIN_CKB,
+    RECEIVER_NODE_RESERVE_PAYMENT_CKB, REQUEST_CELL_BOND_CKB, RequestIntent, ReservationStatus,
+    User, UserRole,
 };
 
 impl AppStore {
@@ -27,6 +28,14 @@ impl AppStore {
         validate_liquidity_request(request)?;
 
         let asset = normalize_asset(&request.asset);
+        if normalize_optional(&request.receiver_ckb_address)
+            .as_deref()
+            .is_some_and(|address| address.eq_ignore_ascii_case(&user.ckb_address))
+        {
+            return Err(anyhow!(
+                "receiver_ckb_address must be the Fiber receiver node wallet, not the connected merchant wallet"
+            ));
+        }
         let vault = self.vault_config().await;
         if let Err(error) = self.sync_live_vault_accounting(&vault, &asset).await {
             tracing::warn!(error = %error, "failed to sync live vault accounting for quote");
@@ -41,10 +50,14 @@ impl AppStore {
         Ok(LiquidityQuote {
             asset,
             amount: request.amount,
+            estimated_usable_capacity: request.amount.saturating_sub(RECEIVER_NODE_RESERVE_MIN_CKB),
             duration_days: request.duration_days,
             lease_fee: lease_fee(request.amount, request.duration_days),
             receiver_node_reserve_min: RECEIVER_NODE_RESERVE_MIN_CKB,
-            receiver_node_reserve_recommended: RECEIVER_NODE_RESERVE_RECOMMENDED_CKB,
+            receiver_node_reserve_payment: RECEIVER_NODE_RESERVE_PAYMENT_CKB,
+            request_cell_bond: REQUEST_CELL_BOND_CKB,
+            receiver_ckb_address: normalize_optional(&request.receiver_ckb_address),
+            minimum_channel_capacity: MIN_CKB_CHANNEL_CAPACITY_CKB,
             routing_fee_bps: 30,
             available: available_liquidity >= request.amount,
             available_liquidity,
@@ -57,8 +70,11 @@ impl AppStore {
         request: CreateLiquidityRequest,
     ) -> Result<LiquidityRequest> {
         require_role(user, &[UserRole::Merchant, UserRole::Operator])?;
+        let signed_tx = request.signed_tx.clone();
+        let settling_signed_intent = request.intent_id.is_some()
+            && (request.request_tx_hash.is_some() || signed_tx.is_some());
         let quote = self.quote(user, &request).await?;
-        if !quote.available {
+        if !quote.available && !settling_signed_intent {
             return Err(anyhow!(
                 "only {} {} is available; deposit more liquidity before requesting {} {}",
                 quote.available_liquidity,
@@ -68,7 +84,6 @@ impl AppStore {
             ));
         }
 
-        let signed_tx = request.signed_tx.clone();
         let request_tx_hash = normalize_transaction_hash(&request.request_tx_hash, &signed_tx);
         let request_cell_out_point = normalize_optional(&request.request_cell_out_point);
         let intent = if let Some(intent_id) = request.intent_id {
@@ -86,7 +101,13 @@ impl AppStore {
             None
         };
         if let Some(intent) = intent.as_ref() {
-            validate_pending_intent(&intent.status, intent.expires_at)?;
+            if settling_signed_intent {
+                if intent.status != IntentStatus::PendingSignature {
+                    return Err(anyhow!("intent is not pending signature"));
+                }
+            } else {
+                validate_pending_intent(&intent.status, intent.expires_at)?;
+            }
             require_intent_matches(intent, &request, &quote)?;
         }
 
@@ -102,11 +123,14 @@ impl AppStore {
             ckb_address: user.ckb_address.clone(),
             asset: quote.asset,
             amount: request.amount,
+            usable_capacity: 0,
             duration_days: request.duration_days,
             lease_fee: quote.lease_fee,
             routing_fee_bps: quote.routing_fee_bps,
             fiber_peer_pubkey: normalize_optional(&request.fiber_peer_pubkey),
             fiber_peer_address: normalize_optional(&request.fiber_peer_address),
+            receiver_ckb_address: normalize_optional(&request.receiver_ckb_address),
+            receiver_reserve_payment: quote.receiver_node_reserve_payment,
             public_channel: request.public_channel.unwrap_or(false),
             funding_udt_type_script: request.funding_udt_type_script.clone(),
             request_cell_id: intent
@@ -115,6 +139,8 @@ impl AppStore {
                 .unwrap_or_else(|| request_cell_id(id)),
             request_tx_hash: request_tx_hash.clone(),
             request_cell_out_point,
+            funding_tx_hash: None,
+            funding_out_point: None,
             status: LiquidityStatus::Requested,
             fiber_temporary_channel_id: None,
             channel_id: None,
@@ -131,20 +157,31 @@ impl AppStore {
 
         let mut state = self.inner.write().await;
         let vault = state.vault_config(&self.vault);
-        if state
-            .vault_summary(&vault, liquidity_request.asset.clone())
-            .available_liquidity
-            < liquidity_request.amount
+        if !settling_signed_intent
+            && state
+                .vault_summary(&vault, liquidity_request.asset.clone())
+                .available_liquidity
+                < liquidity_request.amount
         {
             return Err(anyhow!("liquidity was just reserved by another request"));
         }
-        reserve_positions_with_fee(
+        if let Err(error) = reserve_positions_with_fee(
             &mut state.lp_positions,
             &liquidity_request.asset,
             liquidity_request.amount,
             liquidity_request.lease_fee,
             now,
-        )?;
+        ) {
+            if !settling_signed_intent {
+                return Err(error);
+            }
+            tracing::warn!(
+                request_id = %liquidity_request.id,
+                tx_hash = ?request_tx_hash,
+                error = %error,
+                "capacity request was already reflected by live vault sync; settling Core ledger from verified tx"
+            );
+        }
         if let Some(intent) = intent.as_ref()
             && let Some(stored) = state
                 .request_intents
@@ -203,6 +240,8 @@ fn require_intent_matches(
         && intent.routing_fee_bps == quote.routing_fee_bps
         && intent.fiber_peer_pubkey == normalize_optional(&request.fiber_peer_pubkey)
         && intent.fiber_peer_address == normalize_optional(&request.fiber_peer_address)
+        && intent.receiver_ckb_address == normalize_optional(&request.receiver_ckb_address)
+        && intent.receiver_reserve_payment == quote.receiver_node_reserve_payment
         && intent.public_channel == request.public_channel.unwrap_or(false);
     if same_request {
         Ok(())

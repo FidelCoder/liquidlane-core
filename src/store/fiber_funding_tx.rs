@@ -1,17 +1,24 @@
-use anyhow::{Result, anyhow};
+use std::str::FromStr;
+
+use anyhow::{Context, Result, anyhow};
 use ckb_jsonrpc_types::Transaction as JsonTransaction;
-use ckb_sdk::CkbRpcClient;
-use ckb_types::{core::TransactionView, packed, prelude::*};
+use ckb_sdk::{
+    CkbRpcClient, NetworkInfo, NetworkType, ScriptGroup, TransactionWithScriptGroups,
+    transaction::signer::{SignContexts, TransactionSigner},
+};
+use ckb_types::{H256, core::TransactionView, packed, prelude::*};
 
 use super::{
     fiber_funding_builder::{
         BuiltFiberFundingTx, FiberFundingBuilderPayload, MatchedFundingRequest,
     },
     fiber_funding_cells::{
-        add_default_lock_dep, add_script_deps, executor_cell, executor_change_cell, funding_cell,
-        funding_intent_cell, live_cell, next_request_cell, next_vault_cell,
+        add_default_lock_dep, add_script_deps, funding_cell, live_cell, next_request_cell,
+        next_vault_cell,
     },
-    fiber_funding_hex::{packed_script_entity_hex, parse_out_point, secp_placeholder_witness},
+    fiber_funding_hex::{
+        packed_script_entity_hex, parse_out_point, script_from_address, secp_placeholder_witness,
+    },
 };
 
 const SHANNONS_PER_CKB: u64 = 100_000_000;
@@ -19,6 +26,7 @@ const SHANNONS_PER_CKB: u64 = 100_000_000;
 pub(super) fn build_vault_funding_transaction(
     matched: MatchedFundingRequest,
     payload: FiberFundingBuilderPayload,
+    signer_private_key: Option<String>,
 ) -> Result<BuiltFiberFundingTx> {
     let rpc = CkbRpcClient::new(&payload.rpc_url);
     let vault_out_point = parse_out_point(
@@ -42,12 +50,16 @@ pub(super) fn build_vault_funding_transaction(
         .executor_address
         .as_deref()
         .ok_or_else(|| anyhow!("LIQUIDLANE_EXECUTOR_CKB_ADDRESS is missing"))?;
-    let executor = executor_cell(&payload.rpc_url, executor_address)?;
-    let executor_lock = executor.output.lock();
+    let executor_lock = script_from_address(executor_address)?;
     let funding_source_lock = packed_script_entity_hex(&payload.funding_source_lock_script)?;
     if funding_source_lock.calc_script_hash() != executor_lock.calc_script_hash() {
         return Err(anyhow!(
             "Fiber funding source lock does not match the configured LiquidLane executor"
+        ));
+    }
+    if request_cell.output.lock().calc_script_hash() != executor_lock.calc_script_hash() {
+        return Err(anyhow!(
+            "LiquidLane request cell lock does not match the configured executor signer"
         ));
     }
     let funding_lock = packed_script_entity_hex(&payload.request.script)?;
@@ -70,47 +82,22 @@ pub(super) fn build_vault_funding_transaction(
         ));
     }
 
-    let request_type = request_cell
-        .output
-        .type_()
-        .to_opt()
-        .ok_or_else(|| anyhow!("request cell type script is missing"))?;
-    let vault_type = vault_cell
-        .output
-        .type_()
-        .to_opt()
-        .ok_or_else(|| anyhow!("vault cell type script is missing"))?;
+    let base_outputs = base.outputs().into_iter().collect::<Vec<_>>();
+    if base_outputs.len() > 1 {
+        return Err(anyhow!(
+            "LiquidLane vault funding supports Fiber transactions with one funding output"
+        ));
+    }
     let funding_cell = funding_cell(&payload, funding_lock.clone())?;
     let next_vault = next_vault_cell(&vault_cell, local_shannons)?;
-    let next_request = next_request_cell(&request_cell)?;
-    let funding_intent = funding_intent_cell(
-        &matched,
-        &vault_type,
-        &request_type,
-        &executor_lock,
-        &funding_lock,
-    )?;
-    let change = executor_change_cell(&executor, &funding_intent)?;
+    let next_request = next_request_cell(&request_cell, 0)?;
     let mut inputs = base.inputs().into_iter().collect::<Vec<_>>();
     let base_input_len = inputs.len();
     inputs.push(vault_cell.input.clone());
     inputs.push(request_cell.input.clone());
-    inputs.push(executor.input.clone());
 
-    let mut outputs = vec![funding_cell.output];
-    let mut outputs_data = vec![funding_cell.data];
-    for (index, output) in base.outputs().into_iter().enumerate().skip(1) {
-        outputs.push(output);
-        outputs_data.push(base.outputs_data().get(index).unwrap_or_default());
-    }
-    for output in [next_vault, next_request, funding_intent] {
-        outputs.push(output.output);
-        outputs_data.push(output.data);
-    }
-    if let Some(change) = change {
-        outputs.push(change.output);
-        outputs_data.push(change.data);
-    }
+    let outputs = vec![funding_cell.output, next_vault.output, next_request.output];
+    let outputs_data = vec![funding_cell.data, next_vault.data, next_request.data];
     let mut cell_deps = base.cell_deps().into_iter().collect::<Vec<_>>();
     add_script_deps(&mut cell_deps, &matched.vault)?;
     add_default_lock_dep(&mut cell_deps, &rpc, &executor_lock)?;
@@ -120,7 +107,6 @@ pub(super) fn build_vault_funding_transaction(
     }
     witnesses.push(packed::Bytes::default());
     witnesses.push(secp_placeholder_witness());
-    witnesses.push(packed::Bytes::default());
     let tx = base
         .as_advanced_builder()
         .set_cell_deps(cell_deps)
@@ -129,7 +115,14 @@ pub(super) fn build_vault_funding_transaction(
         .set_outputs_data(outputs_data)
         .set_witnesses(witnesses)
         .build();
-    let tx_hash = tx.hash().to_string();
+    let tx = sign_executor_inputs(
+        tx,
+        &payload.rpc_url,
+        &executor_lock,
+        &[base_input_len + 1],
+        signer_private_key.as_deref(),
+    )?;
+    let tx_hash = tx_hash_hex(&tx);
     let transaction: JsonTransaction = tx.data().into();
     Ok(BuiltFiberFundingTx {
         transaction: serde_json::to_value(transaction)?,
@@ -137,4 +130,40 @@ pub(super) fn build_vault_funding_transaction(
         tx_hash,
         request_id: matched.request.id,
     })
+}
+
+fn sign_executor_inputs(
+    tx: TransactionView,
+    rpc_url: &str,
+    executor_lock: &packed::Script,
+    input_indices: &[usize],
+    private_key: Option<&str>,
+) -> Result<TransactionView> {
+    let private_key = private_key.ok_or_else(|| {
+        anyhow!("LIQUIDLANE_EXECUTOR_PRIVATE_KEY is required to sign vault-funded executor inputs")
+    })?;
+    let network_info = NetworkInfo::new(NetworkType::Testnet, rpc_url.to_string());
+    let mut script_group = ScriptGroup::from_lock_script(executor_lock);
+    script_group.input_indices = input_indices.to_vec();
+    let mut tx_with_groups = TransactionWithScriptGroups::new(tx, vec![script_group]);
+    let signed = TransactionSigner::new(&network_info).sign_transaction(
+        &mut tx_with_groups,
+        &SignContexts::new_sighash_h256(vec![parse_private_key(private_key)?])?,
+    )?;
+    if signed.is_empty() {
+        return Err(anyhow!(
+            "vault funding signer could not sign the executor lock group"
+        ));
+    }
+    Ok(tx_with_groups.get_tx_view().clone())
+}
+
+fn parse_private_key(value: &str) -> Result<H256> {
+    let value = value.trim().trim_start_matches("0x");
+    H256::from_str(value).context("LIQUIDLANE_EXECUTOR_PRIVATE_KEY must be 32-byte hex")
+}
+
+fn tx_hash_hex(tx: &TransactionView) -> String {
+    let hash: H256 = tx.hash().unpack();
+    hash.to_string()
 }

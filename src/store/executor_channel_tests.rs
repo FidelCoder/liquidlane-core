@@ -3,7 +3,7 @@ mod tests {
     use chrono::Utc;
     use uuid::Uuid;
 
-    use super::super::executor_channel::{
+    use super::super::executor_channel_match::{
         channel_matches_request, matching_failed_channel, matching_settled_channel,
         matching_usable_channel,
     };
@@ -29,6 +29,7 @@ mod tests {
             amount_ckb: Some(51),
             funding_tx_hash: None,
             funding_out_point: None,
+            funding_input_out_points: Vec::new(),
             settlement_tx_hash: None,
             is_usable: true,
             is_closed: false,
@@ -39,13 +40,13 @@ mod tests {
     }
 
     #[test]
-    fn peer_match_requires_exact_reserved_amount() {
+    fn peer_and_amount_never_identify_a_request() {
         let request = request(200);
         let wrong_amount = channel(None, Some("03peer"), Some(100), true, false);
         let right_amount = channel(None, Some("03peer"), Some(200), true, false);
 
         assert!(!channel_matches_request(&request, &[], &wrong_amount));
-        assert!(channel_matches_request(&request, &[], &right_amount));
+        assert!(!channel_matches_request(&request, &[], &right_amount));
     }
 
     #[test]
@@ -79,6 +80,7 @@ mod tests {
             amount_ckb: None,
             funding_tx_hash: Some("0xfund".to_string()),
             funding_out_point: None,
+            funding_input_out_points: Vec::new(),
             settlement_tx_hash: None,
             is_usable: true,
             is_closed: false,
@@ -89,20 +91,33 @@ mod tests {
     }
 
     #[test]
-    fn settled_channel_matches_open_request_by_amount() {
+    fn settled_channel_matches_open_request_by_channel_id() {
         let mut request = request(500);
         request.status = LiquidityStatus::ChannelOpen;
-        let channels = vec![settled_channel(Some("03peer"), Some(500))];
+        request.channel_id = Some("0xsettled".to_string());
+        let mut settled = settled_channel(Some("03peer"), Some(500));
+        settled.channel_id = Some("0xsettled".to_string());
+        let channels = vec![settled];
 
         assert!(matching_settled_channel(&request, &[], &channels).is_some());
     }
 
     #[test]
-    fn failed_channel_matches_pending_request_by_amount() {
+    fn stale_failed_channel_does_not_match_by_peer_and_amount() {
         let request = request(500);
         let channels = vec![channel(None, Some("03peer"), Some(500), false, true)];
 
-        assert!(matching_failed_channel(&request, &[], &channels).is_some());
+        assert!(matching_failed_channel(&request, &[], &channels).is_none());
+    }
+
+    #[test]
+    fn failed_channel_matches_exact_request_input() {
+        let mut request = request(500);
+        request.request_cell_out_point = Some("0xrequest#0x1".to_string());
+        let mut failed = channel(None, Some("03peer"), Some(500), false, true);
+        failed.funding_input_out_points = vec!["0xrequest#0x1".to_string()];
+
+        assert!(matching_failed_channel(&request, &[], &[failed]).is_some());
     }
 
     fn request(amount: u64) -> crate::domain::LiquidityRequest {
@@ -114,16 +129,21 @@ mod tests {
             ckb_address: "ckt1qmerchant".to_string(),
             asset: "CKB".to_string(),
             amount,
+            usable_capacity: 0,
             duration_days: 1,
             lease_fee: 1,
             routing_fee_bps: 30,
             fiber_peer_pubkey: Some("03peer".to_string()),
             fiber_peer_address: None,
+            receiver_ckb_address: None,
+            receiver_reserve_payment: 0,
             public_channel: false,
             funding_udt_type_script: None,
             request_cell_id: "ll-request-test".to_string(),
             request_tx_hash: None,
             request_cell_out_point: None,
+            funding_tx_hash: None,
+            funding_out_point: None,
             status: LiquidityStatus::PendingFiberChannel,
             fiber_temporary_channel_id: None,
             channel_id: None,
@@ -148,6 +168,7 @@ mod tests {
             amount_ckb,
             funding_tx_hash: None,
             funding_out_point: None,
+            funding_input_out_points: Vec::new(),
             settlement_tx_hash: None,
             is_usable,
             is_closed: is_failed,
@@ -163,6 +184,7 @@ mod tests {
             amount_ckb,
             funding_tx_hash: None,
             funding_out_point: None,
+            funding_input_out_points: Vec::new(),
             settlement_tx_hash: Some("0xsettle".to_string()),
             is_usable: false,
             is_closed: true,

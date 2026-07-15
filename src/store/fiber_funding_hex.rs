@@ -41,21 +41,6 @@ pub(super) fn script_dep_out_point(value: &Option<String>, label: &str) -> Resul
     )
 }
 
-pub(super) fn script_code_hash(value: &Option<String>, label: &str) -> Result<[u8; 32]> {
-    let bytes = hex_bytes(
-        value
-            .as_deref()
-            .ok_or_else(|| anyhow!("{label} is missing"))?,
-    )?;
-    if bytes.len() == 32 {
-        Ok(bytes
-            .try_into()
-            .map_err(|_| anyhow!("{label} must be 32 bytes"))?)
-    } else {
-        Err(anyhow!("{label} must be 32 bytes"))
-    }
-}
-
 pub(super) fn encode_vault_data(
     total: u64,
     reserved: u64,
@@ -86,14 +71,6 @@ pub(super) fn encode_request_data(
     data.pack()
 }
 
-pub(super) fn encode_funding_intent_data(status: u8, amount: u64) -> packed::Bytes {
-    let mut data = Vec::with_capacity(10);
-    data.push(1);
-    data.push(status);
-    data.extend(amount.to_le_bytes());
-    data.pack()
-}
-
 pub(super) fn read_u64(data: &[u8], offset: usize) -> Result<u64> {
     let mut raw = [0u8; 8];
     raw.copy_from_slice(
@@ -111,13 +88,6 @@ pub(super) fn add_u64(left: u64, right: u64, label: &str) -> Result<u64> {
 pub(super) fn sub_u64(left: u64, right: u64, label: &str) -> Result<u64> {
     left.checked_sub(right)
         .ok_or_else(|| anyhow!("{label} underflow"))
-}
-
-pub(super) fn padded_id(id: &uuid::Uuid) -> Vec<u8> {
-    let mut out = vec![0u8; 32];
-    let raw = id.as_bytes();
-    out[..raw.len()].copy_from_slice(raw);
-    out
 }
 
 pub(super) fn secp_placeholder_witness() -> packed::Bytes {

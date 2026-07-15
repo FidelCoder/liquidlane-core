@@ -28,6 +28,7 @@ async fn main() -> anyhow::Result<()> {
     let fiber = FiberClient::new(
         config.fiber_rpc_url.clone(),
         config.fiber_rpc_auth_token.clone(),
+        config.fiber_funding_fee_rate,
     );
     let ckb_rpc = config
         .ckb_rpc_url
@@ -46,6 +47,7 @@ async fn main() -> anyhow::Result<()> {
             config.executor_funding_mode.clone(),
             config.vault_funding_builder_enabled,
             config.vault_funding_signer_enabled,
+            config.vault_funding_signer_private_key.clone(),
         )
         .await?,
     );

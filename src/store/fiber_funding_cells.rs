@@ -2,8 +2,7 @@ use anyhow::{Result, anyhow};
 use ckb_sdk::{
     CkbRpcClient,
     constants::SIGHASH_TYPE_HASH,
-    rpc::ckb_indexer::{Order, SearchKey},
-    traits::{CellDepResolver, CellQueryOptions, DefaultCellDepResolver, ValueRangeOption},
+    traits::{CellDepResolver, DefaultCellDepResolver},
 };
 use ckb_types::{
     core::{Capacity, DepType},
@@ -12,18 +11,16 @@ use ckb_types::{
 };
 
 use super::{
-    fiber_funding_builder::{FiberFundingBuilderPayload, MatchedFundingRequest},
+    fiber_funding_builder::FiberFundingBuilderPayload,
     fiber_funding_hex::{
-        add_u64, cell_input, encode_funding_intent_data, encode_request_data, encode_vault_data,
-        padded_id, read_u64, script_code_hash, script_dep_out_point, script_from_address, sub_u64,
+        add_u64, cell_input, encode_request_data, encode_vault_data, read_u64,
+        script_dep_out_point, sub_u64,
     },
 };
 use crate::domain::VaultConfig;
 
 const SHANNONS_PER_CKB: u64 = 100_000_000;
 const REQUEST_STATUS_DEPLOYED: u8 = 2;
-const FUNDING_STATUS_READY: u8 = 0;
-const BUILDER_FEE_SHANNONS: u64 = 1_000_000;
 
 pub(super) struct LiveInput {
     pub input: CellInput,
@@ -49,30 +46,6 @@ pub(super) fn live_cell(rpc: &CkbRpcClient, out_point: OutPoint) -> Result<LiveI
         input: cell_input(out_point),
         output: cell.output.into(),
         data: data.pack(),
-    })
-}
-
-pub(super) fn executor_cell(rpc_url: &str, address: &str) -> Result<LiveInput> {
-    let lock = script_from_address(address)?;
-    let mut query = CellQueryOptions::new_lock(lock);
-    query.with_data = Some(true);
-    query.data_len_range = Some(ValueRangeOption::new_exact(0));
-    query.capacity_range = Some(ValueRangeOption::new_min(62 * SHANNONS_PER_CKB));
-    let rpc = CkbRpcClient::new(rpc_url);
-    let page = rpc.get_cells(SearchKey::from(query), Order::Desc, 10u32.into(), None)?;
-    let cell = page
-        .objects
-        .into_iter()
-        .max_by_key(|cell| u64::from(cell.output.capacity))
-        .ok_or_else(|| anyhow!("executor wallet has no spendable CKB cell for builder fees"))?;
-    Ok(LiveInput {
-        input: cell_input(cell.out_point.into()),
-        output: cell.output.into(),
-        data: cell
-            .output_data
-            .map(|data| data.into_bytes().to_vec())
-            .unwrap_or_default()
-            .pack(),
     })
 }
 
@@ -134,13 +107,30 @@ pub(super) fn next_vault_cell(input: &LiveInput, funding_shannons: u64) -> Resul
     })
 }
 
-pub(super) fn next_request_cell(input: &LiveInput) -> Result<TxOutput> {
+pub(super) fn next_request_cell(input: &LiveInput, fee_shannons: u64) -> Result<TxOutput> {
     let data = input.data.raw_data();
     if data.len() != 26 || data[0] != 1 {
         return Err(anyhow!("capacity request cell data is invalid"));
     }
+    let output = input
+        .output
+        .clone()
+        .as_builder()
+        .capacity(sub_u64(
+            input.output.capacity().unpack(),
+            fee_shannons,
+            "request funding fee",
+        )?)
+        .build();
+    let min = output.occupied_capacity(Capacity::bytes(26)?)?.as_u64();
+    let output_capacity: u64 = output.capacity().unpack();
+    if output_capacity < min {
+        return Err(anyhow!(
+            "request output capacity would fall below minimum cell capacity"
+        ));
+    }
     Ok(TxOutput {
-        output: input.output.clone(),
+        output,
         data: encode_request_data(
             REQUEST_STATUS_DEPLOYED,
             read_u64(&data, 2)?,
@@ -148,77 +138,6 @@ pub(super) fn next_request_cell(input: &LiveInput) -> Result<TxOutput> {
             read_u64(&data, 18)?,
         ),
     })
-}
-
-pub(super) fn funding_intent_cell(
-    matched: &MatchedFundingRequest,
-    vault_type: &Script,
-    request_type: &Script,
-    executor_lock: &Script,
-    funding_lock: &Script,
-) -> Result<TxOutput> {
-    let args = [
-        vault_type.calc_script_hash().raw_data().to_vec(),
-        request_type.code_hash().raw_data().to_vec(),
-        executor_lock.calc_script_hash().raw_data().to_vec(),
-        funding_lock.calc_script_hash().raw_data().to_vec(),
-        padded_id(&matched.request.id),
-    ]
-    .concat();
-    let type_script = Script::new_builder()
-        .code_hash(script_code_hash(
-            &matched.vault.scripts.funding_intent_type_code_hash,
-            "LIQUIDLANE_FUNDING_INTENT_TYPE_CODE_HASH",
-        )?)
-        .hash_type(ckb_types::core::ScriptHashType::Data1)
-        .args(args.pack())
-        .build();
-    let data = encode_funding_intent_data(FUNDING_STATUS_READY, matched.request.amount);
-    let output = CellOutput::new_builder()
-        .lock(executor_lock.clone())
-        .type_(Some(type_script).pack())
-        .build();
-    Ok(TxOutput {
-        output: output
-            .clone()
-            .as_builder()
-            .capacity(
-                output
-                    .occupied_capacity(Capacity::bytes(data.len())?)?
-                    .pack(),
-            )
-            .build(),
-        data,
-    })
-}
-
-pub(super) fn executor_change_cell(
-    executor: &LiveInput,
-    funding_intent: &TxOutput,
-) -> Result<Option<TxOutput>> {
-    let input_capacity: u64 = executor.output.capacity().unpack();
-    let used = add_u64(
-        funding_intent.output.capacity().unpack(),
-        BUILDER_FEE_SHANNONS,
-        "executor fee",
-    )?;
-    let Some(change_capacity) = input_capacity.checked_sub(used) else {
-        return Err(anyhow!(
-            "executor cell cannot cover funding-intent capacity and fees"
-        ));
-    };
-    let output = CellOutput::new_builder()
-        .lock(executor.output.lock())
-        .capacity(change_capacity)
-        .build();
-    let min = output.occupied_capacity(Capacity::zero())?.as_u64();
-    if change_capacity < min {
-        return Ok(None);
-    }
-    Ok(Some(TxOutput {
-        output,
-        data: packed::Bytes::default(),
-    }))
 }
 
 pub(super) fn add_script_deps(cell_deps: &mut Vec<CellDep>, vault: &VaultConfig) -> Result<()> {

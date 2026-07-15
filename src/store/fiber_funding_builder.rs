@@ -55,6 +55,7 @@ impl AppStore {
         tracing::info!(
             local_amount = payload.request.local_amount,
             remote_amount = payload.request.remote_amount,
+            remote_reserved_ckb_amount = payload.request.remote_reserved_ckb_amount,
             funding_fee_rate = payload.request.funding_fee_rate,
             "Fiber funding builder callback received"
         );
@@ -65,8 +66,13 @@ impl AppStore {
             merchant = %matched.request.merchant_name,
             "Fiber funding builder matched LiquidLane reserve"
         );
+        let signer_private_key = self.vault_funding_signer_private_key.clone();
         let built = tokio::task::spawn_blocking(move || {
-            super::fiber_funding_tx::build_vault_funding_transaction(matched, payload)
+            super::fiber_funding_tx::build_vault_funding_transaction(
+                matched,
+                payload,
+                signer_private_key,
+            )
         })
         .await
         .map_err(|err| anyhow!("vault funding builder task failed: {err}"))??;
@@ -165,9 +171,8 @@ impl AppStore {
             "vault-funded CKB funding transaction built"
         );
         request.status = LiquidityStatus::FundingSubmitted;
-        request.fiber_temporary_channel_id = Some(built.tx_hash.clone());
         request.fiber_note = Some(
-            "Vault-funded CKB transaction was built for Fiber signing and broadcast.".to_string(),
+            "Vault-funded CKB candidate assembled; Fiber is signing and finalizing the collaborative transaction.".to_string(),
         );
         request.fiber_error = None;
         request.updated_at = now;
@@ -184,9 +189,8 @@ impl AppStore {
             intent.status = ExternalFundingIntentStatus::FundingSubmitted;
             intent.funding_tx_hash = Some(built.tx_hash.clone());
             intent.funding_out_point = Some(built.funding_out_point.clone());
-            intent.fiber_ref = Some(built.tx_hash.clone());
             intent.note =
-                "Vault-funded CKB transaction built; Fiber is signing and broadcasting it."
+                "Vault-funded CKB candidate assembled; Fiber is finalizing the collaborative transaction."
                     .to_string();
             intent.blockers.clear();
             intent.updated_at = now;
