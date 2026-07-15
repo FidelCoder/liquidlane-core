@@ -1,6 +1,7 @@
 mod accounting;
 mod auth;
 mod chain_address;
+mod chain_confirmation;
 mod chain_deposit;
 mod chain_fee_claim;
 mod chain_fee_guard;

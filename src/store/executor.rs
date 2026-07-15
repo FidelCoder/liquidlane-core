@@ -180,6 +180,34 @@ impl AppStore {
             .ok_or_else(|| anyhow!("executor job not found after retry"))
     }
 
+    pub async fn retry_failed_funding_jobs(&self) -> usize {
+        let job_ids = {
+            let state = self.inner.read().await;
+            state
+                .executor_jobs
+                .iter()
+                .filter(|job| job.status == ExecutorJobStatus::RetryableFailed)
+                .filter(|job| job.attempts < job.max_retries)
+                .filter(|job| {
+                    job.last_error.as_deref().is_some_and(|error| {
+                        error.contains("Vault funding builder timed out")
+                            || error.contains("CKB live cell was not found")
+                    })
+                })
+                .map(|job| job.id)
+                .collect::<Vec<_>>()
+        };
+
+        let mut retried = 0;
+        for job_id in job_ids {
+            match self.retry_executor_job(job_id).await {
+                Ok(_) => retried += 1,
+                Err(error) => tracing::warn!(%job_id, %error, "automatic funding retry failed"),
+            }
+        }
+        retried
+    }
+
     pub async fn release_expired_requests(&self) -> Result<usize> {
         let now = Utc::now();
         let mut state = self.inner.write().await;
