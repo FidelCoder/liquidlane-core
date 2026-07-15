@@ -51,12 +51,7 @@ pub(super) fn build_vault_funding_transaction(
         .as_deref()
         .ok_or_else(|| anyhow!("LIQUIDLANE_EXECUTOR_CKB_ADDRESS is missing"))?;
     let executor_lock = script_from_address(executor_address)?;
-    let funding_source_lock = packed_script_entity_hex(&payload.funding_source_lock_script)?;
-    if funding_source_lock.calc_script_hash() != executor_lock.calc_script_hash() {
-        return Err(anyhow!(
-            "Fiber funding source lock does not match the configured LiquidLane executor"
-        ));
-    }
+    let _funding_source_lock = packed_script_entity_hex(&payload.funding_source_lock_script)?;
     if request_cell.output.lock().calc_script_hash() != executor_lock.calc_script_hash() {
         return Err(anyhow!(
             "LiquidLane request cell lock does not match the configured executor signer"
