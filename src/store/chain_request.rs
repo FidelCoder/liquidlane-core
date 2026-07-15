@@ -25,6 +25,7 @@ impl AppStore {
             return Ok(());
         };
         self.verify_ckb_settlement_tx(tx_hash, signed_tx).await?;
+        self.wait_for_ckb_commitment(tx_hash).await?;
         let Some(client) = self.ckb_rpc.as_ref() else {
             return Ok(());
         };

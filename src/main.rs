@@ -101,6 +101,10 @@ fn spawn_executor_worker(store: Arc<AppStore>, poll_interval_ms: u64) {
                     tracing::warn!(error = %error, "failed to sync Fiber channel status");
                 }
             }
+            let retried = store.retry_failed_funding_jobs().await;
+            if retried > 0 {
+                tracing::info!(retried, "retried CKB-confirmed vault funding jobs");
+            }
             match store.release_expired_requests().await {
                 Ok(released) if released > 0 => {
                     tracing::info!(released, "released expired LiquidLane reservations");
