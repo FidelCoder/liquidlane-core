@@ -13,23 +13,23 @@ mod tests {
 
     #[test]
     fn accepts_one_exact_receiver_reserve_output() {
-        assert!(require_receiver_reserve_payment(&transaction(&[101]), &request()).is_ok());
+        assert!(require_receiver_reserve_payment(&transaction(&[201]), &request()).is_ok());
     }
 
     #[test]
     fn rejects_receiver_reserve_underpayment() {
-        let error = require_receiver_reserve_payment(&transaction(&[100]), &request())
+        let error = require_receiver_reserve_payment(&transaction(&[200]), &request())
             .unwrap_err()
             .to_string();
-        assert!(error.contains("pay exactly 101 CKB"));
+        assert!(error.contains("pay exactly 201 CKB"));
     }
 
     #[test]
     fn rejects_duplicate_receiver_reserve_outputs() {
-        let error = require_receiver_reserve_payment(&transaction(&[101, 101]), &request())
+        let error = require_receiver_reserve_payment(&transaction(&[201, 201]), &request())
             .unwrap_err()
             .to_string();
-        assert!(error.contains("pay exactly 101 CKB"));
+        assert!(error.contains("pay exactly 201 CKB"));
     }
 
     fn transaction(amounts: &[u64]) -> Value {
@@ -70,7 +70,7 @@ mod tests {
             fiber_peer_pubkey: None,
             fiber_peer_address: None,
             receiver_ckb_address: Some(RECEIVER.to_string()),
-            receiver_reserve_payment: 101,
+            receiver_reserve_payment: 201,
             public_channel: false,
             funding_udt_type_script: None,
             request_cell_id: "ll-request-test".to_string(),

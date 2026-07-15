@@ -7,7 +7,7 @@ use super::CkbScript;
 
 pub const MIN_CKB_CHANNEL_CAPACITY_CKB: u64 = 200;
 pub const RECEIVER_NODE_RESERVE_MIN_CKB: u64 = 99;
-pub const RECEIVER_NODE_RESERVE_PAYMENT_CKB: u64 = 101;
+pub const RECEIVER_NODE_RESERVE_PAYMENT_CKB: u64 = 201;
 pub const REQUEST_CELL_BOND_CKB: u64 = 250;
 
 #[derive(Clone, Debug, Deserialize)]
