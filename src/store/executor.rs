@@ -186,7 +186,11 @@ impl AppStore {
             state
                 .executor_jobs
                 .iter()
-                .filter(|job| job.status == ExecutorJobStatus::RetryableFailed)
+                .filter(|job| {
+                    job.status == ExecutorJobStatus::RetryableFailed
+                        || (job.status == ExecutorJobStatus::AwaitingVaultFunding
+                            && job.updated_at + Duration::seconds(10) <= Utc::now())
+                })
                 .filter(|job| job.attempts < job.max_retries)
                 .filter(|job| {
                     job.last_error.as_deref().is_some_and(|error| {
