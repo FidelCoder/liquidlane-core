@@ -1,0 +1,49 @@
+{
+  "observed_at": "2026-09-28T12:07:08.671435+00:00",
+  "checks": [
+    {
+      "command": "cargo test --locked -q",
+      "passed": 88,
+      "ignored": 2,
+      "failed": 0
+    },
+    {
+      "command": "LIQUIDLANE_TEST_FIBER_BINARY=../fiber-node/fnn cargo test --locked --lib -- --ignored",
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "command": "cargo fmt --check; bash scripts/check-rust-line-count.sh; cargo build --locked --bins",
+      "result": "passed"
+    },
+    {
+      "command": "npm run lint; npm run build",
+      "result": "passed"
+    },
+    {
+      "command": "npm run test:e2e -- --project=wallet-contract",
+      "passed": 19,
+      "failed": 0
+    },
+    {
+      "command": "npm run test:e2e -- --project=settlement-desktop --project=settlement-mobile",
+      "passed": 4,
+      "failed": 0,
+      "note": "Controlled marketplace responses; existing local Chromium 1234 selected with PLAYWRIGHT_CHROMIUM_PATH."
+    },
+    {
+      "command": "python3 scripts/verify-provider-setup.py --cache-home /tmp/liquidlane-install-check-cache --app-url http://127.0.0.1:3016 --output docs/evidence/2026-09-28/provider-services.json",
+      "result": "passed",
+      "note": "Stable temporary binaries; real testnet RPC and user services, native-wallet account; both browser viewports. No new channel or transfer."
+    },
+    {
+      "command": "liquidlane-connector settlement-status <config.json> <funding-outpoint>",
+      "result": "passed for two forced closures and one cooperative closure",
+      "note": "Live testnet reads of historical channels through the production verifier."
+    }
+  ],
+  "not_tested": [
+    "Full host reboot",
+    "JoyID passkey-signed funding of a freshly managed node"
+  ]
+}

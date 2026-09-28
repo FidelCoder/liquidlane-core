@@ -1,0 +1,121 @@
+{
+  "observed_at": "2026-09-26T05:13:40.067107+00:00",
+  "nodes": {
+    "provider": [
+      {
+        "channel_id": "0xa5be6b489215afcf198aad0e15b3a2744115fb3debbcc1efcc72f83bc7c19bd7",
+        "is_public": false,
+        "is_acceptor": true,
+        "is_one_way": false,
+        "channel_outpoint": "0xce614be959f38db1d4f640b3fda89e5c5a88966199d1145d077be77d9f68d24400000000",
+        "pubkey": "039a32103641975837d9ba52477e57be2918b16e4040c5e5d0da8d3316d46e4e50",
+        "funding_udt_type_script": null,
+        "state": {
+          "state_name": "Closed",
+          "state_flags": "UNCOOPERATIVE_REMOTE|WAITING_ONCHAIN_SETTLEMENT"
+        },
+        "local_balance": "0x0",
+        "offered_tlc_balance": "0x0",
+        "remote_balance": "0x25a01c500",
+        "received_tlc_balance": "0x0",
+        "pending_tlcs": [],
+        "latest_commitment_transaction_hash": "0x77f9ca9d1bdf807b912229073ed2e04d6fd44cef21e1568ada60c3cdcc697d89",
+        "created_at": "0x1a0d9dc72b0",
+        "enabled": true,
+        "tlc_expiry_delta": "0xdbba00",
+        "tlc_fee_proportional_millionths": "0x3e8",
+        "shutdown_transaction_hash": "0xc815ffa86948ba2c9dc6ff268cbe5f18d335eb8065fd158db151840803bcb2a3",
+        "failure_detail": null
+      },
+      {
+        "channel_id": "0xce665b51cc0ab3c4836879f4d47e71c1b9e727baf280e071b7397a8cf9cd1065",
+        "is_public": false,
+        "is_acceptor": false,
+        "is_one_way": false,
+        "channel_outpoint": "0x2650ce1864b810ba5a4809f32edd5fb6db55fd57b0b8c53d7910a5b15cae1f2e00000000",
+        "pubkey": "039a32103641975837d9ba52477e57be2918b16e4040c5e5d0da8d3316d46e4e50",
+        "funding_udt_type_script": null,
+        "state": {
+          "state_name": "ShuttingDown",
+          "state_flags": "WAITING_COMMITMENT_CONFIRMATION"
+        },
+        "local_balance": "0x25a01c500",
+        "offered_tlc_balance": "0x0",
+        "remote_balance": "0x0",
+        "received_tlc_balance": "0x0",
+        "pending_tlcs": [],
+        "latest_commitment_transaction_hash": "0xb04c7fe37031c183d64da7b9ff2cb4dc6580aaf5d36e8aae2fefa695901790e0",
+        "created_at": "0x1a0d9d8139d",
+        "enabled": true,
+        "tlc_expiry_delta": "0xdbba00",
+        "tlc_fee_proportional_millionths": "0x3e8",
+        "shutdown_transaction_hash": null,
+        "failure_detail": null
+      }
+    ],
+    "merchant": [
+      {
+        "channel_id": "0xa5be6b489215afcf198aad0e15b3a2744115fb3debbcc1efcc72f83bc7c19bd7",
+        "is_public": false,
+        "is_acceptor": false,
+        "is_one_way": false,
+        "channel_outpoint": "0xce614be959f38db1d4f640b3fda89e5c5a88966199d1145d077be77d9f68d24400000000",
+        "pubkey": "0290cfbbee4c4f2f24cd6f0875726713574d1f4621eeb5d8fc5e30f235d7e80ea1",
+        "funding_udt_type_script": null,
+        "state": {
+          "state_name": "Closed",
+          "state_flags": "UNCOOPERATIVE_LOCAL|WAITING_ONCHAIN_SETTLEMENT"
+        },
+        "local_balance": "0x25a01c500",
+        "offered_tlc_balance": "0x0",
+        "remote_balance": "0x0",
+        "received_tlc_balance": "0x0",
+        "pending_tlcs": [],
+        "latest_commitment_transaction_hash": "0x009440af38a022639b14958168eda64584b3f02387192afe07533b8ff095d18b",
+        "created_at": "0x1a0d9dc72af",
+        "enabled": true,
+        "tlc_expiry_delta": "0xdbba00",
+        "tlc_fee_proportional_millionths": "0x3e8",
+        "shutdown_transaction_hash": "0xc815ffa86948ba2c9dc6ff268cbe5f18d335eb8065fd158db151840803bcb2a3",
+        "failure_detail": null
+      },
+      {
+        "channel_id": "0xce665b51cc0ab3c4836879f4d47e71c1b9e727baf280e071b7397a8cf9cd1065",
+        "is_public": false,
+        "is_acceptor": true,
+        "is_one_way": false,
+        "channel_outpoint": "0x2650ce1864b810ba5a4809f32edd5fb6db55fd57b0b8c53d7910a5b15cae1f2e00000000",
+        "pubkey": "0290cfbbee4c4f2f24cd6f0875726713574d1f4621eeb5d8fc5e30f235d7e80ea1",
+        "funding_udt_type_script": null,
+        "state": {
+          "state_name": "Closed",
+          "state_flags": "UNCOOPERATIVE_REMOTE|WAITING_ONCHAIN_SETTLEMENT"
+        },
+        "local_balance": "0x0",
+        "offered_tlc_balance": "0x0",
+        "remote_balance": "0x25a01c500",
+        "received_tlc_balance": "0x0",
+        "pending_tlcs": [],
+        "latest_commitment_transaction_hash": "0x8135c9a1f76f187480accd5c88e34790daf3632f262aff97f6d208b8b6a51448",
+        "created_at": "0x1a0d9d8139f",
+        "enabled": true,
+        "tlc_expiry_delta": "0xdbba00",
+        "tlc_fee_proportional_millionths": "0x3e8",
+        "shutdown_transaction_hash": "0x48ec70fdcc1732b798d576284f9da107ef159ae95285d209aadfddd07fd5ed4a",
+        "failure_detail": null
+      }
+    ]
+  },
+  "commitment_outputs": {
+    "0xc815ffa86948ba2c9dc6ff268cbe5f18d335eb8065fd158db151840803bcb2a3": {
+      "block_hash": null,
+      "cell": null,
+      "status": "unknown"
+    },
+    "0x48ec70fdcc1732b798d576284f9da107ef159ae95285d209aadfddd07fd5ed4a": {
+      "block_hash": null,
+      "cell": null,
+      "status": "unknown"
+    }
+  }
+}

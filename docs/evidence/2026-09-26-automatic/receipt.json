@@ -1,0 +1,205 @@
+{
+  "current_order": {
+    "automatic": true,
+    "channel_id": "0x7f880f5d5846fad277901c1306ed227b22a873125bc03e871baba4f5fa175069",
+    "created_at": 1790427563,
+    "delivered_at": 1790427813,
+    "delivery_block_number": 22545368,
+    "error": null,
+    "fee_status": "paid",
+    "fee_tx_hash": "0x5cb5836713358476da1a1d4d24c9b82a5a38429968cdfae8b9b4c5e0cf99f260",
+    "funding_outpoint": "0x3c31462b883f62e20393b41bb868a9320cfa5b236d160f21df05d24f2bef1502#0",
+    "id": "ea21ff1e6681b8fe2230426b52a1cd35d9de0316023ea4d305522997a3c8b506",
+    "merchant_evidence": {
+      "channel_id": "0x7f880f5d5846fad277901c1306ed227b22a873125bc03e871baba4f5fa175069",
+      "funding_outpoint": "0x3c31462b883f62e20393b41bb868a9320cfa5b236d160f21df05d24f2bef1502#0",
+      "inbound_liquidity": "0xba43b7400",
+      "local_balance": "0x5f5e100",
+      "observed_at": 1790427944,
+      "peer_pubkey": "0290cfbbee4c4f2f24cd6f0875726713574d1f4621eeb5d8fc5e30f235d7e80ea1",
+      "remote_balance": "0xba43b7400",
+      "settlement_tx_hash": null,
+      "state": "ChannelReady"
+    },
+    "merchant_proof": {
+      "address": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvjp0wktpqeh8cz54uk867rl93xfyerdagpaf7ae",
+      "alg": 0,
+      "challenge": "",
+      "keyType": "",
+      "message": "",
+      "pubkey": "03dda034ca9a6795a20ab9f80c1fa2249abf956ea76adc2d4f245144ba73d9bc18",
+      "scheme": "ckb_secp256k1",
+      "signature": "6c6d45fc04d6318ac4fcbda3e5cd1c43e668c04a849d76336c798c420773c7391217ed8864e265bdfbd1ea0cd5c24392fd0d9ea319ea1a7aef1a939db25cfd60"
+    },
+    "offer_id": "aaea73e1-9a68-464c-b236-c7b154ac70af",
+    "owner": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvjp0wktpqeh8cz54uk867rl93xfyerdagpaf7ae",
+    "probe_invoice": "fibt1000000001pzh439uf2utczxuy2fhdvmwuyjzstnzffk5qha7nyl97gj4rk8er7fufxgvvyna7jl3zm5sexn3eq2nugjve0jlncr2v22w8a2fnyduutnhzw4d5j3clhh7rgh8j02x2ezsllzkdxf9pmk7a3e9h7hga04e9c9ku7s73m2gydyzmzqhp9rhwvp6su2kka3cq05q3rsgfxpedxmrpj5sgx2jm7xk847yuqzggg22kk7wsu55ap56ulqcng6afu6kachumdrp77xjdtp5rjvraluy62zmaek62yw9x7shphcctjl93lmwqvwx4sya54c3y6plmzfzmrfll9xqdp055l6wkl93g053j468qqupge6a4usepve36p49dyp9wvqwhdymy27qng8a8xeaueg27gm4y89ftqa98d4aajpgtpvee3te7atr77du6yshxz5yswm6a3d6sp0nqq6qrqvp",
+    "probe_payment_hash": "0x790615511c2f57b8a874771b7341d338c05f2f43b8c754754b5902a556dc4f0f",
+    "probe_received": true,
+    "provider_evidence": {
+      "channel_id": "0x7f880f5d5846fad277901c1306ed227b22a873125bc03e871baba4f5fa175069",
+      "funding_outpoint": "0x3c31462b883f62e20393b41bb868a9320cfa5b236d160f21df05d24f2bef1502#0",
+      "inbound_liquidity": "0x5f5e100",
+      "local_balance": "0xba43b7400",
+      "observed_at": 1790427947,
+      "peer_pubkey": "039a32103641975837d9ba52477e57be2918b16e4040c5e5d0da8d3316d46e4e50",
+      "remote_balance": "0x5f5e100",
+      "settlement_tx_hash": null,
+      "state": "ChannelReady"
+    },
+    "provider_signature": "68f51e226502fe404b714ccb13cbcc995b3b717228e0e679a43081d2aa03a7566a521d122bfcf83eaff43e108d7433d0c5bcb0af117be7e078708a1f78ddf64b",
+    "quote": {
+      "capacity_ckb": 500,
+      "expires_at": 1790428163,
+      "fee_recipient": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqthj2jju7mskjqvaqhgxmuy06q8jp5fyxqnefz3j",
+      "funding_ckb": 600,
+      "merchant_account": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvjp0wktpqeh8cz54uk867rl93xfyerdagpaf7ae",
+      "merchant_address": "/ip4/127.0.0.1/tcp/18328/p2p/QmPtcWne1hsxKL3b543PMuxRLb3rc2VvaP6aPFFHmEVvqG",
+      "merchant_node": "c2db3caf-fe12-48ac-8354-3a1af4ce407a",
+      "merchant_pubkey": "039a32103641975837d9ba52477e57be2918b16e4040c5e5d0da8d3316d46e4e50",
+      "merchant_reserve_ckb": 99,
+      "network": "testnet",
+      "nonce": "370f4501a190419396a693a754704c78241f899bb77b4b3aa6cf50782526a939",
+      "opening_fee_ckb": 61,
+      "order_id": "ea21ff1e6681b8fe2230426b52a1cd35d9de0316023ea4d305522997a3c8b506",
+      "protocol": "liquidlane-marketplace/1",
+      "provider_node": "27732fb7-5877-496b-8813-ccea65068d1d",
+      "provider_pubkey": "0290cfbbee4c4f2f24cd6f0875726713574d1f4621eeb5d8fc5e30f235d7e80ea1",
+      "provider_reserve_ckb": 99,
+      "public_channel": true
+    },
+    "quote_hash": "fa335c3dd80109b7296c2bf34b62172e0a4a1b9876c225b8c90c52778365dc72",
+    "status": "delivered",
+    "updated_at": 1790427947
+  },
+  "delivery": {
+    "merchant_attestation": {
+      "payload": "{\"at\":1790427813,\"evidence\":{\"channel_id\":\"0x7f880f5d5846fad277901c1306ed227b22a873125bc03e871baba4f5fa175069\",\"funding_outpoint\":\"0x3c31462b883f62e20393b41bb868a9320cfa5b236d160f21df05d24f2bef150200000000\",\"inbound_liquidity\":\"0xba43b7400\",\"local_balance\":\"0x5f5e100\",\"observed_at\":1790427813,\"peer_pubkey\":\"0290cfbbee4c4f2f24cd6f0875726713574d1f4621eeb5d8fc5e30f235d7e80ea1\",\"remote_balance\":\"0xba43b7400\",\"settlement_tx_hash\":null,\"state\":\"ChannelReady\"},\"node_id\":\"c2db3caf-fe12-48ac-8354-3a1af4ce407a\",\"order_id\":\"ea21ff1e6681b8fe2230426b52a1cd35d9de0316023ea4d305522997a3c8b506\"}",
+      "signature": "99d79defa3f709febb8e5f5d49cdab510d3ec525ea8f9a0d7989bc3de17f89052f78ac33d626c8474106a2b4beaa0653639abacf52061c1c1f0d2121be321627"
+    },
+    "merchant_probe_attestation": {
+      "payload": "{\"at\":1790427766,\"invoice\":\"fibt1000000001pzh439uf2utczxuy2fhdvmwuyjzstnzffk5qha7nyl97gj4rk8er7fufxgvvyna7jl3zm5sexn3eq2nugjve0jlncr2v22w8a2fnyduutnhzw4d5j3clhh7rgh8j02x2ezsllzkdxf9pmk7a3e9h7hga04e9c9ku7s73m2gydyzmzqhp9rhwvp6su2kka3cq05q3rsgfxpedxmrpj5sgx2jm7xk847yuqzggg22kk7wsu55ap56ulqcng6afu6kachumdrp77xjdtp5rjvraluy62zmaek62yw9x7shphcctjl93lmwqvwx4sya54c3y6plmzfzmrfll9xqdp055l6wkl93g053j468qqupge6a4usepve36p49dyp9wvqwhdymy27qng8a8xeaueg27gm4y89ftqa98d4aajpgtpvee3te7atr77du6yshxz5yswm6a3d6sp0nqq6qrqvp\",\"node_id\":\"c2db3caf-fe12-48ac-8354-3a1af4ce407a\",\"order_id\":\"ea21ff1e6681b8fe2230426b52a1cd35d9de0316023ea4d305522997a3c8b506\",\"paid\":true,\"payment_hash\":\"0x790615511c2f57b8a874771b7341d338c05f2f43b8c754754b5902a556dc4f0f\"}",
+      "signature": "958d891058000f8c0e7a5f47ecc7f2cd7693dedc90b7d09158a0c7b10fe151d966ff1a9463755c33cee31d58855d3218e335f6a07ca0dd6290d103d5ea5d0412"
+    },
+    "order_at_delivery": {
+      "automatic": true,
+      "channel_id": "0x7f880f5d5846fad277901c1306ed227b22a873125bc03e871baba4f5fa175069",
+      "created_at": 1790427563,
+      "delivered_at": 1790427813,
+      "delivery_block_number": 22545368,
+      "error": null,
+      "fee_status": "due",
+      "fee_tx_hash": null,
+      "funding_outpoint": "0x3c31462b883f62e20393b41bb868a9320cfa5b236d160f21df05d24f2bef1502#0",
+      "id": "ea21ff1e6681b8fe2230426b52a1cd35d9de0316023ea4d305522997a3c8b506",
+      "merchant_evidence": {
+        "channel_id": "0x7f880f5d5846fad277901c1306ed227b22a873125bc03e871baba4f5fa175069",
+        "funding_outpoint": "0x3c31462b883f62e20393b41bb868a9320cfa5b236d160f21df05d24f2bef1502#0",
+        "inbound_liquidity": "0xba43b7400",
+        "local_balance": "0x5f5e100",
+        "observed_at": 1790427813,
+        "peer_pubkey": "0290cfbbee4c4f2f24cd6f0875726713574d1f4621eeb5d8fc5e30f235d7e80ea1",
+        "remote_balance": "0xba43b7400",
+        "settlement_tx_hash": null,
+        "state": "ChannelReady"
+      },
+      "merchant_proof": {
+        "address": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvjp0wktpqeh8cz54uk867rl93xfyerdagpaf7ae",
+        "alg": 0,
+        "challenge": "",
+        "keyType": "",
+        "message": "",
+        "pubkey": "03dda034ca9a6795a20ab9f80c1fa2249abf956ea76adc2d4f245144ba73d9bc18",
+        "scheme": "ckb_secp256k1",
+        "signature": "6c6d45fc04d6318ac4fcbda3e5cd1c43e668c04a849d76336c798c420773c7391217ed8864e265bdfbd1ea0cd5c24392fd0d9ea319ea1a7aef1a939db25cfd60"
+      },
+      "offer_id": "aaea73e1-9a68-464c-b236-c7b154ac70af",
+      "owner": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvjp0wktpqeh8cz54uk867rl93xfyerdagpaf7ae",
+      "probe_invoice": "fibt1000000001pzh439uf2utczxuy2fhdvmwuyjzstnzffk5qha7nyl97gj4rk8er7fufxgvvyna7jl3zm5sexn3eq2nugjve0jlncr2v22w8a2fnyduutnhzw4d5j3clhh7rgh8j02x2ezsllzkdxf9pmk7a3e9h7hga04e9c9ku7s73m2gydyzmzqhp9rhwvp6su2kka3cq05q3rsgfxpedxmrpj5sgx2jm7xk847yuqzggg22kk7wsu55ap56ulqcng6afu6kachumdrp77xjdtp5rjvraluy62zmaek62yw9x7shphcctjl93lmwqvwx4sya54c3y6plmzfzmrfll9xqdp055l6wkl93g053j468qqupge6a4usepve36p49dyp9wvqwhdymy27qng8a8xeaueg27gm4y89ftqa98d4aajpgtpvee3te7atr77du6yshxz5yswm6a3d6sp0nqq6qrqvp",
+      "probe_payment_hash": "0x790615511c2f57b8a874771b7341d338c05f2f43b8c754754b5902a556dc4f0f",
+      "probe_received": true,
+      "provider_evidence": {
+        "channel_id": "0x7f880f5d5846fad277901c1306ed227b22a873125bc03e871baba4f5fa175069",
+        "funding_outpoint": "0x3c31462b883f62e20393b41bb868a9320cfa5b236d160f21df05d24f2bef1502#0",
+        "inbound_liquidity": "0x5f5e100",
+        "local_balance": "0xba43b7400",
+        "observed_at": 1790427810,
+        "peer_pubkey": "039a32103641975837d9ba52477e57be2918b16e4040c5e5d0da8d3316d46e4e50",
+        "remote_balance": "0x5f5e100",
+        "settlement_tx_hash": null,
+        "state": "ChannelReady"
+      },
+      "provider_signature": "68f51e226502fe404b714ccb13cbcc995b3b717228e0e679a43081d2aa03a7566a521d122bfcf83eaff43e108d7433d0c5bcb0af117be7e078708a1f78ddf64b",
+      "quote": {
+        "capacity_ckb": 500,
+        "expires_at": 1790428163,
+        "fee_recipient": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqthj2jju7mskjqvaqhgxmuy06q8jp5fyxqnefz3j",
+        "funding_ckb": 600,
+        "merchant_account": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvjp0wktpqeh8cz54uk867rl93xfyerdagpaf7ae",
+        "merchant_address": "/ip4/127.0.0.1/tcp/18328/p2p/QmPtcWne1hsxKL3b543PMuxRLb3rc2VvaP6aPFFHmEVvqG",
+        "merchant_node": "c2db3caf-fe12-48ac-8354-3a1af4ce407a",
+        "merchant_pubkey": "039a32103641975837d9ba52477e57be2918b16e4040c5e5d0da8d3316d46e4e50",
+        "merchant_reserve_ckb": 99,
+        "network": "testnet",
+        "nonce": "370f4501a190419396a693a754704c78241f899bb77b4b3aa6cf50782526a939",
+        "opening_fee_ckb": 61,
+        "order_id": "ea21ff1e6681b8fe2230426b52a1cd35d9de0316023ea4d305522997a3c8b506",
+        "protocol": "liquidlane-marketplace/1",
+        "provider_node": "27732fb7-5877-496b-8813-ccea65068d1d",
+        "provider_pubkey": "0290cfbbee4c4f2f24cd6f0875726713574d1f4621eeb5d8fc5e30f235d7e80ea1",
+        "provider_reserve_ckb": 99,
+        "public_channel": true
+      },
+      "quote_hash": "fa335c3dd80109b7296c2bf34b62172e0a4a1b9876c225b8c90c52778365dc72",
+      "status": "delivered",
+      "updated_at": 1790427813
+    },
+    "provider_attestation": {
+      "payload": "{\"at\":1790427810,\"evidence\":{\"channel_id\":\"0x7f880f5d5846fad277901c1306ed227b22a873125bc03e871baba4f5fa175069\",\"funding_outpoint\":\"0x3c31462b883f62e20393b41bb868a9320cfa5b236d160f21df05d24f2bef150200000000\",\"inbound_liquidity\":\"0x5f5e100\",\"local_balance\":\"0xba43b7400\",\"observed_at\":1790427810,\"peer_pubkey\":\"039a32103641975837d9ba52477e57be2918b16e4040c5e5d0da8d3316d46e4e50\",\"remote_balance\":\"0x5f5e100\",\"settlement_tx_hash\":null,\"state\":\"ChannelReady\"},\"node_id\":\"27732fb7-5877-496b-8813-ccea65068d1d\",\"order_id\":\"ea21ff1e6681b8fe2230426b52a1cd35d9de0316023ea4d305522997a3c8b506\"}",
+      "signature": "8e6d7150bf53fe365837084e1fc1bacb3e060e3e627b17642bd6cbae9f572b5101a4525ac4ce91ce93257dbe971b32edbe94994f0cc6c926d5455dda1725df06"
+    },
+    "trust": "Signed participant observations plus confirmed native funding; no proof of future availability."
+  },
+  "events": [
+    {
+      "action": "order_created",
+      "actor": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvjp0wktpqeh8cz54uk867rl93xfyerdagpaf7ae",
+      "at": 1790427563
+    },
+    {
+      "action": "provider_quoted",
+      "actor": "27732fb7-5877-496b-8813-ccea65068d1d",
+      "at": 1790427566
+    },
+    {
+      "action": "merchant_accepted",
+      "actor": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvjp0wktpqeh8cz54uk867rl93xfyerdagpaf7ae",
+      "at": 1790427587
+    },
+    {
+      "action": "automatic_provider_authorization",
+      "actor": "27732fb7-5877-496b-8813-ccea65068d1d",
+      "at": 1790427594
+    },
+    {
+      "action": "merchant_created_probe",
+      "actor": "c2db3caf-fe12-48ac-8354-3a1af4ce407a",
+      "at": 1790427680
+    },
+    {
+      "action": "merchant_received_probe",
+      "actor": "c2db3caf-fe12-48ac-8354-3a1af4ce407a",
+      "at": 1790427766
+    },
+    {
+      "action": "delivery_verified",
+      "actor": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvjp0wktpqeh8cz54uk867rl93xfyerdagpaf7ae",
+      "at": 1790427813
+    },
+    {
+      "action": "confirmed_fee_payment",
+      "actor": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvjp0wktpqeh8cz54uk867rl93xfyerdagpaf7ae",
+      "at": 1790427909
+    }
+  ]
+}

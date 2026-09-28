@@ -1,0 +1,55 @@
+{
+  "network": "CKB testnet",
+  "fiber_version": "0.9.0",
+  "date": "2026-09-26",
+  "order_id": "ea21ff1e6681b8fe2230426b52a1cd35d9de0316023ea4d305522997a3c8b506",
+  "capacity_ckb": 500,
+  "provider_funding_ckb": 600,
+  "merchant_reserve_ckb": 99,
+  "provider_policy": {
+    "accept_public_orders": true,
+    "auto_approve": true,
+    "allowed_merchants": [],
+    "max_order_ckb": 2000,
+    "max_total_ckb": 5000,
+    "min_fee_ckb": 61
+  },
+  "local_opening_record": {
+    "approved": false,
+    "attempted": true,
+    "funding_ckb": 600,
+    "quote_hash": "fa335c3dd80109b7296c2bf34b62172e0a4a1b9876c225b8c90c52778365dc72",
+    "channel_id": "0x7f880f5d5846fad277901c1306ed227b22a873125bc03e871baba4f5fa175069",
+    "started_at": 1790427594
+  },
+  "probe": {
+    "payment_hash": "0x790615511c2f57b8a874771b7341d338c05f2f43b8c754754b5902a556dc4f0f",
+    "status": "Success",
+    "fee": "0x186a0",
+    "failed_error": null
+  },
+  "fee_status": "paid",
+  "fee_tx_hash": "0x5cb5836713358476da1a1d4d24c9b82a5a38429968cdfae8b9b4c5e0cf99f260",
+  "closing_tx_hash": "0x65a91b4b6f3c3d31c8d122a9c26310df76faa5130e9e9710b090798198f4bc0d",
+  "closing_status": "committed",
+  "closing_spends_order_funding": true,
+  "recoveries": [
+    {
+      "participant": "provider",
+      "returned_shannons": "0xdf2517700",
+      "native_state": {
+        "state_name": "Closed",
+        "state_flags": "COOPERATIVE"
+      }
+    },
+    {
+      "participant": "merchant",
+      "returned_shannons": "0x2540bdfe0",
+      "native_state": {
+        "state_name": "Closed",
+        "state_flags": "COOPERATIVE"
+      }
+    }
+  ],
+  "scope": "Team-operated real nodes and native wallet signatures. No provider approve command. Fee payment and test-channel closure were explicit test actions; automatic fee collection is not claimed."
+}

@@ -1,112 +1,61 @@
-# LiquidLane Core
+# LiquidLane
 
-Fiber-native backend for CKB wallet sessions, stablecoin vault accounting, liquidity requests, Fiber channel-open orchestration, and LP fee tracking on LiquidLane.
+A CKB testnet marketplace for **initial Fiber receive capacity**. Providers operate their own nodes, fund their own native bidirectional channels, and retain their keys. LiquidLane coordinates discovery, signed quotes, orders, delivery evidence, and direct service fees.
 
-LiquidLane turns LP stablecoin liquidity into on-demand Fiber payment-channel capacity for wallets, merchants, and apps.
+The first pilot charges for opening capacity. It does not guarantee duration, ongoing replenishment, or passive yield. No pooled vault or custom contract is required by this flow.
 
-## Product Flow
+## Run locally
 
-1. A user connects a CKB wallet and opens a LiquidLane wallet session.
-2. LPs supply liquidity by signing a CKB vault transaction that spends the active vault cell, updates vault accounting, and mints an LP receipt cell.
-3. Core records the deposit only after verifying the broadcast transaction against the active vault and receipt scripts.
-4. Merchants request receive capacity and include a Fiber peer pubkey when they are ready to open a channel.
-5. LiquidLane quotes lease fees and reserves available liquidity.
-6. LiquidLane submits `open_channel` to a configured Fiber node. If `FIBER_RPC_URL` is missing, Core rejects the operator action and leaves the reservation unchanged.
-7. Fees are only counted as earned after a request reaches `channel_open`.
+Requires Rust 1.91 and a CKB testnet RPC with an indexer. Participant connectors use Fiber **0.9.0**; automatic provider setup installs it on Linux x86_64.
 
-## Development
-
-```bash
-cp .env.example .env
-cargo run
+```sh
+cp .env.example .env.marketplace
+cargo build --locked --bins
+cargo run --locked --bin liquidlane-core
 ```
 
-The API listens on `0.0.0.0:8080` by default and stores local state in `liquidlane-data.json`.
-Configure the active vault with `LIQUIDLANE_VAULT_ASSET`, `LIQUIDLANE_VAULT_CKB_ADDRESS`, and `LIQUIDLANE_CKB_NETWORK`. The beta runtime is locked to CKB testnet, and `LIQUIDLANE_VAULT_CKB_ADDRESS` must be a real `ckt1...` testnet address from the deployed vault script; Core rejects placeholder-looking values and reports the vault as unconfigured when no address is set.
+Marketplace loads `.env.marketplace`; the legacy `.env` is read only when `LIQUIDLANE_PRODUCT_MODE=legacy_vault` is explicitly set in the process environment. Marketplace is the default product mode and uses a separate SQLite database. The coordinator never needs Fiber RPC access or a private key.
 
-## Fiber RPC
+The web app is in the sibling `liquidlane-app` repository. Connect JoyID and sign in. Merchants use **Request Capacity → My receiving nodes**; providers use **Supply Liquidity → My offers & nodes**. Generate a pairing code and download the pairing file, then run connector setup on the node machine to create its local configuration. A receiving node needs its native reserve plus CKB for change and network fees; it is not an empty wallet checkout.
 
-Set `FIBER_RPC_URL` to submit channel opens to a Fiber node JSON-RPC endpoint. If it is not set, LiquidLane can still supply and reserve capacity, but operator channel submission returns a clear configuration error and does not invent a channel id.
-
-```bash
-FIBER_RPC_URL=http://127.0.0.1:8227 cargo run
+```sh
+cargo install --locked --path . --bin liquidlane-connector
+liquidlane-connector setup ./liquidlane-pairing.json
 ```
 
-For UDT assets like USDC, requests sent to Fiber RPC must include `funding_udt_type_script`.
+For a new provider node on Linux x86_64, use `liquidlane-connector setup ./liquidlane-pairing.json --new-node --background`. This creates the local node and starts Fiber and its connector as user services. The UI moves to Add capital after a fresh check-in. For an existing node, use `--background` without `--new-node`. See [automatic provider setup](docs/automatic-provider-setup.md) for the local launcher, security boundaries, and service controls.
 
-## Active Vault API
+Provider setup enables automatic public requests. After connecting, **Add capital** displays the node-signed funding address and asks your wallet to transfer CKB there. A 500 CKB offer needs at least 663 CKB available before existing reservations. Set the node's per-order and total channel funding limits and minimum fee, then publish an offer. Any merchant can choose it; no merchant allowlist or per-order approval is needed. The connector checks both signatures and local limits before funding. Fees are paid after delivery and can remain unpaid. Existing restricted/manual configurations retain their policy until their operator explicitly updates them.
 
-LiquidLane exposes the product vault that clients use for supply transactions.
+## Flow
 
-```bash
-curl http://localhost:8080/vault
+1. Merchant chooses an online provider and requests capacity.
+2. Provider connector signs the quote after checking local policy.
+3. Merchant signs the quote hash; the provider connector authorizes funding under its local policy.
+4. Provider node opens a native bidirectional channel using its own wallet.
+5. Both connectors report the channel; Core checks its committed funding output.
+6. A separate payer sends the merchant's 1 CKB probe through the provider.
+7. Merchant verifies delivery. The agreed capacity must remain available after the probe.
+8. Merchant pays the provider directly. Core credits only a matching, confirmed CKB payment after delivery.
+
+The prototype vault flow is archived in [the legacy guide](docs/legacy-vault-readme.md) and remains available only through explicit `LIQUIDLANE_PRODUCT_MODE=legacy_vault`. Existing deployed scripts and recovery records are preserved. Never treat legacy LP assets as marketplace provider capital.
+
+## Documentation
+
+- [Custody, protocol, and trust boundaries](docs/marketplace-design.md)
+- [Automatic provider setup and local launch](docs/automatic-provider-setup.md)
+- [Deployment, connector operation, backups, and recovery](docs/marketplace-operations.md)
+- [HTTP API](docs/marketplace-api.md)
+- [Testnet evidence](docs/marketplace-testnet-evidence.md)
+
+## Verification
+
+```sh
+cargo fmt --check
+cargo test --locked
+bash scripts/check-rust-line-count.sh
 ```
 
-## CKB Scripts
+Tests use isolated fixtures. Runtime requests require real signatures, node responses, and committed testnet transactions. CLI wallet commands are explicit local tools; the coordinator does not load or invoke them.
 
-The CKB-native script source drafts live in `ckb-scripts/`. They cover vault custody, vault accounting, LP receipt cells, capacity request cells, and fee claim cells.
-
-The current testnet deployment is recorded in `docs/testnet-deployment.md` and `ckb-scripts/deployments/`. Demo readiness is tracked in `docs/testnet-demo-readiness.md`. The scripts are still not externally audited and must not be treated as mainnet-ready.
-
-## CKB Wallet Session API
-
-Open a wallet session without an extra signature. Value-moving actions still require a wallet transaction proof.
-
-```bash
-curl -X POST http://localhost:8080/auth/connect \
-  -H "Content-Type: application/json" \
-  -d '{"ckb_address":"ckt1...","wallet_type":"joyid_ckb","role":"lp","display_name":"Atlas LP"}'
-```
-
-The signed challenge flow is still available for clients that want explicit sign-in.
-
-Create challenge:
-
-```bash
-curl -X POST http://localhost:8080/auth/challenge \
-  -H "Content-Type: application/json" \
-  -d '{"ckb_address":"ckt1...","wallet_type":"joyid_ckb","role":"operator"}'
-```
-
-Verify signed CKB wallet proof:
-
-```bash
-curl -X POST http://localhost:8080/auth/verify \
-  -H "Content-Type: application/json" \
-  -d '{"challenge_id":"...","ckb_address":"ckt1...","wallet_type":"joyid_ckb","signature":"0x...","display_name":"Operator"}'
-```
-
-Use the returned bearer token for product APIs.
-
-## Supply Liquidity API
-
-Supply is a two-step CKB-native flow. Core creates a vault intent, the wallet signs a transaction that spends the active vault cell and mints an LP receipt cell, then Core settles the intent into an LP position after chain verification. Bare accounting deposits and simple transfers are rejected.
-
-Create a supply intent:
-
-```bash
-curl -X POST http://localhost:8080/vault/supply/intents \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"asset":"CKB","amount":100}'
-```
-
-Settle the intent after the wallet signs and broadcasts the vault update transaction:
-
-```bash
-curl -X POST http://localhost:8080/deposits \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"asset":"CKB","amount":100,"intent_id":"...","tx_hash":"0x...","signed_tx":{"inputs":[],"outputs":[],"witnesses":["0x..."]}}'
-```
-
-LP positions, capacity reservations, withdrawal intents, and fee-claim intents are returned by `GET /dashboard`.
-
-For production-style settlement verification, configure `LIQUIDLANE_CKB_RPC_URL` and set `LIQUIDLANE_REQUIRE_CKB_RPC=true`. Core will reject supply settlement unless the CKB node returns the transaction as accepted.
-
-## Tests
-
-```bash
-cargo test
-scripts/check-rust-line-count.sh
-```
+Licensed under MIT. Third-party components keep their respective licenses.

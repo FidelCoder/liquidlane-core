@@ -1,0 +1,30 @@
+{
+  "invoice_address": "fibt1000000001pzh439uf2utczxuy2fhdvux4zxm60hed3tncte73hdrallj8ayu9eq3lxzhad4hthz8smkla9xnx32dgvx5g3pe8mltfdglrg5d5qhdvt5gncgxnmk9ygq9mgw6z6t8mxqls0veggegrdzys7204vnd3mjysstxesqzw26yqu8d69qyml7t28dvd2arnkmntujkn2n50jsc5wene542734aeqggewh49g05etg6dltkx4f8emqr6c9thvhrvzr3afxxsapyl7rxfl4y6xtkz2e9459krt8chyqlnev99k3a5cswaq4sfv4akq72n8n4xxs64ef92mkpjj304jlc2hns60mddvs5uyfg6qdypwr4wpyg44zamsp8rhvr5sd5t504q6n02kgswddkuh02h9jhua7y73sa3c5gul84k9kpg5fd63vfkgt26t99yeej9ev26heggucprf7mlc",
+  "invoice": {
+    "currency": "Fibt",
+    "amount": "0x5f5e100",
+    "signature": "1a000d04010e03150e0104081515021d1b10010703170c0314100d140b140f15001a130f0a1608100e0d0d161c170f0a170512171c1d1e041e11101d111814081c1f0715160516010814090d1a110c0916080b0a1a0b05050419191205190c0a1a171908081c1801",
+    "data": {
+      "timestamp": "0x1a0d9c406c3",
+      "payment_hash": "0x36cd9777bc1752f0e6e2fab97e4679783e9bb651133f0dc607b0666bbada1551",
+      "attrs": [
+        {
+          "description": "LiquidLane delivery 968e1e0cfe39f30a2c0cba3f9df28df5b92078a3c1ed847d136880fb9fae3710"
+        },
+        {
+          "expiry_time": "0x15180"
+        },
+        {
+          "feature": []
+        },
+        {
+          "final_htlc_minimum_expiry_delta": "0x927c00"
+        },
+        {
+          "payee_public_key": "039a32103641975837d9ba52477e57be2918b16e4040c5e5d0da8d3316d46e4e50"
+        }
+      ]
+    }
+  },
+  "status": "Paid"
+}

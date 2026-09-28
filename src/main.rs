@@ -21,8 +21,20 @@ use crate::{
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    dotenvy::dotenv().ok();
+    let mode = std::env::var("LIQUIDLANE_PRODUCT_MODE").unwrap_or_else(|_| "marketplace".into());
+    if mode == "legacy_vault" {
+        dotenvy::dotenv().ok();
+    } else {
+        // Never import the historical vault signer's .env into the coordinator.
+        dotenvy::from_filename(".env.marketplace").ok();
+    }
     init_tracing();
+
+    match mode.as_str() {
+        "legacy_vault" => {}
+        "marketplace" => return liquidlane_core::marketplace::serve().await,
+        mode => anyhow::bail!("unknown LIQUIDLANE_PRODUCT_MODE: {mode}"),
+    }
 
     let config = AppConfig::from_env()?;
     let fiber = FiberClient::new(

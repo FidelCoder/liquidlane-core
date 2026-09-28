@@ -1,0 +1,36 @@
+{
+  "files": [
+    {
+      "file": "README.md",
+      "sha256": "726f08df62b9ba15355a1731942885a2bbbf9fef80b474e807d7015ed3981836"
+    },
+    {
+      "file": "cooperative-settlement.json",
+      "sha256": "dececf369077f67d6a1791c66e67ebf927bc46d95b0c0faa69b9744c64c7dd89"
+    },
+    {
+      "file": "merchant_offline-settlement.json",
+      "sha256": "29fa1ab8d83927d280cc1015f38021957b07c3b594fa02ff6d89d18401882cd8"
+    },
+    {
+      "file": "provider-services-1280.png",
+      "sha256": "206071c94a0918d7c52ea8f62399c1c1eb533b56572acc654dce6e8e233e93ba"
+    },
+    {
+      "file": "provider-services-393.png",
+      "sha256": "cde64c5c604ca23bd2fff1ab5516015d6799f426b6bddd23ab15d9411e73c436"
+    },
+    {
+      "file": "provider-services.json",
+      "sha256": "7a4045503e1f7adc23b92f57025dfa7e915f0492316b71c52a318248597575ba"
+    },
+    {
+      "file": "provider_offline-settlement.json",
+      "sha256": "90599c68b60aa1c916f582c6d12572c2e80e951e8c164dc673dda9ca884fc250"
+    },
+    {
+      "file": "validation.json",
+      "sha256": "55895525f09c56157fa9f4334e958aad1c5a54ba3e61cf2cbd4cb8663ef10905"
+    }
+  ]
+}

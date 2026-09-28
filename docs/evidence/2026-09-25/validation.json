@@ -1,0 +1,17 @@
+{
+  "verified_at": "2026-09-26T05:21:30.267679+00:00",
+  "rust_tests_passed": 61,
+  "rust_format_check": "passed",
+  "rust_source_line_limit": 300,
+  "frontend_lint": "passed",
+  "frontend_production_build": "passed",
+  "frontend_browser_checks_passed": 4,
+  "joyid_fee_contract_checks_passed": 1,
+  "rust_quote_verified_by_frontend_crypto": true,
+  "joyid_live_credential_schema": "verified",
+  "joyid_live_signing": "not completed; wallet rejected automated passkey environment",
+  "cooperative_settlement": "confirmed",
+  "both_unilateral_wallet_recoveries": "confirmed",
+  "native_recovery_rpc_states": "stale; reconciliation remains open",
+  "independent_provider_pilot": false
+}

@@ -1,6 +1,18 @@
 /target
 .env
 /liquidlane-data.json
+/liquidlane-marketplace.sqlite3*
+/connector-state/
+/runtime/
+/scripts/__pycache__/
+/.env.marketplace
 /ckb-scripts/target
 /ckb-scripts/build
 /ckb-scripts/deployments/*.local.json
+
+# Local proposals, task lists, and planning notes
+*proposal*.md
+*plan*.md
+*task*.md
+TASKS.md
+/docs/spark-*.md

@@ -1,0 +1,70 @@
+{
+  "cycles": "0x158a6a",
+  "fee": null,
+  "min_replace_fee": null,
+  "time_added_to_pool": null,
+  "transaction": {
+    "cell_deps": [
+      {
+        "dep_type": "code",
+        "out_point": {
+          "index": "0x1",
+          "tx_hash": "0x12c569a258dd9c5bd99f632bb8314b1263b90921ba31496467580d6b79dd14a7"
+        }
+      },
+      {
+        "dep_type": "code",
+        "out_point": {
+          "index": "0x0",
+          "tx_hash": "0x12c569a258dd9c5bd99f632bb8314b1263b90921ba31496467580d6b79dd14a7"
+        }
+      }
+    ],
+    "hash": "0x65a91b4b6f3c3d31c8d122a9c26310df76faa5130e9e9710b090798198f4bc0d",
+    "header_deps": [],
+    "inputs": [
+      {
+        "previous_output": {
+          "index": "0x0",
+          "tx_hash": "0x3c31462b883f62e20393b41bb868a9320cfa5b236d160f21df05d24f2bef1502"
+        },
+        "since": "0x0"
+      }
+    ],
+    "outputs": [
+      {
+        "capacity": "0xdf2517700",
+        "lock": {
+          "args": "0x7792a52e7b70b480ce82e836f847e80790689218",
+          "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+          "hash_type": "type"
+        },
+        "type": null
+      },
+      {
+        "capacity": "0x2540bdfe0",
+        "lock": {
+          "args": "0x920bdd658419b9f02a57963ebc3f9626493236f5",
+          "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+          "hash_type": "type"
+        },
+        "type": null
+      }
+    ],
+    "outputs_data": [
+      "0x",
+      "0x"
+    ],
+    "version": "0x0",
+    "witnesses": [
+      "0x1000000010000000100000001000000054ea417f7c49ac5a8d0bcff7da0f2644d1e8944d1eb28282a4a8f424dc9eee01ec4a037ca1c2bb4a321f7e57f33b59ac588243d7c7b263c3d51018b342a029ae30dae87c78bc8fcaf770131b9eca08a03233093304bc70257ef621dc71c45a23"
+    ]
+  },
+  "tx_status": {
+    "block_hash": "0x164c1b004d3fcf27079967baa34bdf03d90373f2282de3192e0ec8554491e939",
+    "block_number": "0x15803e8",
+    "reason": null,
+    "status": "committed",
+    "tx_index": "0x1"
+  }
+}

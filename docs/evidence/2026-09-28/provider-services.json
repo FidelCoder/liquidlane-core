@@ -1,0 +1,21 @@
+{
+  "unfunded_test": true,
+  "host_reboot_tested": false,
+  "joyid_passkey_tested": false,
+  "fresh_install": true,
+  "signed_funding_heartbeat": true,
+  "incoming_funding_disabled": true,
+  "private_keys": true,
+  "unit_startup_enabled": true,
+  "starts_at_boot": true,
+  "crash_restart_preserved_identity": true,
+  "service_restart_preserved_identity": true,
+  "repeat_setup_preserved_identity_and_keys": true,
+  "live_capital_page": {
+    "desktop": true,
+    "mobile": true,
+    "node_signature_verified": true,
+    "transfer_requested": false
+  },
+  "observed_at": "2026-09-28T12:05:18Z"
+}

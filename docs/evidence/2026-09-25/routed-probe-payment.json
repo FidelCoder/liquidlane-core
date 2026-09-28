@@ -1,0 +1,9 @@
+{
+  "payment_hash": "0x36cd9777bc1752f0e6e2fab97e4679783e9bb651133f0dc607b0666bbada1551",
+  "status": "Success",
+  "created_at": "0x1a0d9c9e475",
+  "last_updated_at": "0x1a0d9c9e475",
+  "failed_error": null,
+  "fee": "0x186a0",
+  "custom_records": null
+}

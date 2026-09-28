@@ -1,0 +1,16 @@
+{
+  "integrity": "ok",
+  "permissions": "0600",
+  "record_counts": {
+    "account": 2,
+    "attestation": 2,
+    "delivery_receipt": 1,
+    "node": 2,
+    "offer": 1,
+    "order": 1,
+    "pairing": 1,
+    "probe_report": 1
+  },
+  "paid_order_preserved": true,
+  "user_version": 1
+}

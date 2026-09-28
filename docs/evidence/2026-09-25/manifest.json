@@ -1,0 +1,31 @@
+{
+  "recorded_at": "2026-09-26T05:21:30.268309+00:00",
+  "network": "CKB testnet",
+  "fiber_version": "0.9.0",
+  "operators": "All three nodes operated by this project; no independent pilot claim.",
+  "files": {
+    "backup-verification.json": "75c90c61447975e4e5dd2eb211c1b353090e380a59bbdf8edc1e277c1368f17e",
+    "cooperative-settlements.json": "c1ab1e06f141670f59b0d77a0ddcc6d47e9a811f0a34288becb5bca243790900",
+    "desktop.png": "919f9d8ec955dbcb1abaf17b62963d32974f445f7d9fc3aaf2ac79fb0b0a5444",
+    "final-receipt.json": "a2e891b2879172528c836734e44c95197ac5517ac6816d86fb1fa61c20817697",
+    "forced-commitments.json": "7cc784a97d8bf063f3b746d57a9872e4e95078c28e2fd81bdadb28c3c1d08af8",
+    "forced-settlements.json": "67d0ff3e92e8bb8d93b525508fcebe0860ad252aa229d1dbac27888778293f30",
+    "merchant-after-force.json": "1069c5eb8d8f849b693470012027451b39dd6e5e90279f30b11b59d871f1423d",
+    "merchant-after-outage-payment.json": "4ad610fab629c6bf4a92b51f54fef41a4fa9e8ab303e2a5e6cfe384d3219910a",
+    "merchant-before-outage.json": "f3a7f8a2a0ee77798561900b60e0f1f09ca3f24aa4402b72e913c02f438f1503",
+    "merchant-probe-invoice.json": "6404f5fc521deb64718448a4bdfb57e96cd9e5b1c7498cc1616d54cef165917b",
+    "mobile.png": "4c6b6221ae929bc4263772748bf937e2ebe341609d0be68dd7cec0d12e01fa34",
+    "offline-merchant-channel.json": "b24b98a0848ceadd5538dfd0de299e1d0a5ec90d1de273f6dcadc9e7c879a1c6",
+    "offline-provider-channel.json": "61e79e2dcabdeb42be64d0bb774ad4e9f9327aae762d378ccf99334a7b1c2d93",
+    "opening-fee-confirmed.json": "8aa7b4bf2550edf63880691d2fdd9c2a87be69031ac17e5e2b4242a511de2c92",
+    "outage-proof.json": "a04ff073fcf5584f3d0e4bb5627599d4f6619bfe86eeae5c5f483c3302878cc1",
+    "payer-after-outage-payment.json": "bfffde7ba01d6fba54be9caaee0fe798d13733cc8c85d947b74bbc1c6dd6eaef",
+    "payer-before-outage.json": "17a8120fd88c174d68d3dde255818dc70269ebd9b70a260511917c2d1ce699af",
+    "provider-after-force.json": "1ee4432f75a55ed596e32961186c3ff585a7ec7552779af8044c7cf6b21321a0",
+    "provider-after-outage-payment.json": "fd554807d15c2d78747f9e1758086ddea7edeb8f1f1a0da93a1c0ee2c1a1cd4a",
+    "provider-before-outage.json": "a949c9be403325581722a2aaa8d2e9606ec6a73385c3461f9f4434459cfb2b0e",
+    "recovery-followup.json": "01b46b6d26a4d7188661c8ea43d9849f43c5d3f5b52e2ec1623f5dc11dbf9109",
+    "routed-probe-payment.json": "608690e5dbba6a6aa1b008613a21f87a7899a6ff2fc2594101d839749c5fda96",
+    "validation.json": "2363abe0238980bcdd793f3c372484c35934c8d8058adc4c56b60a867cef9482"
+  }
+}

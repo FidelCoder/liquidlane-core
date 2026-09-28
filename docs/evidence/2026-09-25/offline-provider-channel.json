@@ -1,0 +1,24 @@
+{
+  "channel_id": "0xa5be6b489215afcf198aad0e15b3a2744115fb3debbcc1efcc72f83bc7c19bd7",
+  "is_public": false,
+  "is_acceptor": false,
+  "is_one_way": false,
+  "channel_outpoint": "0xce614be959f38db1d4f640b3fda89e5c5a88966199d1145d077be77d9f68d24400000000",
+  "pubkey": "0290cfbbee4c4f2f24cd6f0875726713574d1f4621eeb5d8fc5e30f235d7e80ea1",
+  "funding_udt_type_script": null,
+  "state": {
+    "state_name": "ChannelReady"
+  },
+  "local_balance": "0x25a01c500",
+  "offered_tlc_balance": "0x0",
+  "remote_balance": "0x0",
+  "received_tlc_balance": "0x0",
+  "pending_tlcs": [],
+  "latest_commitment_transaction_hash": "0x009440af38a022639b14958168eda64584b3f02387192afe07533b8ff095d18b",
+  "created_at": "0x1a0d9dc72af",
+  "enabled": true,
+  "tlc_expiry_delta": "0xdbba00",
+  "tlc_fee_proportional_millionths": "0x3e8",
+  "shutdown_transaction_hash": null,
+  "failure_detail": null
+}

@@ -1,0 +1,12 @@
+{
+  "funding_outpoint": "0x840c21bbd998f05802949098e2c0109e0c302a4e46d569c7c7662fd9254f6816#0",
+  "settlement": {
+    "closing_tx_hash": "0xf483cb650b58b115e09b6d4d8eb3921f5b6fbe72125909e664a16c238155ae65",
+    "transaction_hashes": [
+      "0xf483cb650b58b115e09b6d4d8eb3921f5b6fbe72125909e664a16c238155ae65"
+    ],
+    "pending_outpoints": [],
+    "confirmed": true,
+    "checked_at": 1790596826
+  }
+}

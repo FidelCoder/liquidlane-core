@@ -1,0 +1,21 @@
+{
+  "at": "2026-09-26T14:47:22.588Z",
+  "network": "ckb-testnet",
+  "coordinator": "isolated real API",
+  "signer": "native owned test wallet; JoyID interaction is not automated",
+  "amount_ckb": 61,
+  "sender": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqtejlhekt03e07w2jvmazps4a4qznc52hcs4h43k",
+  "recipient": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqthj2jju7mskjqvaqhgxmuy06q8jp5fyxqnefz3j",
+  "tx_hash": "0x5250ca7f06944c2ef1f3cb899d19df060d114696ed687aaebea9215767ef74c0",
+  "status": "committed",
+  "available_before_ckb": 1483,
+  "available_after_ckb": 1544,
+  "confirmed_in_browser": true,
+  "funded_offer_minimum_ckb": 600,
+  "provider_pubkey": "0290cfbbee4c4f2f24cd6f0875726713574d1f4621eeb5d8fc5e30f235d7e80ea1",
+  "signed_node_report": {
+    "address": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqthj2jju7mskjqvaqhgxmuy06q8jp5fyxqnefz3j",
+    "payload": "{\"at\":1790434041,\"available_ckb\":1544,\"chain_hash\":\"0x10639e0895502b5688a6be8cf69460d76541bfa4821629d86d62ba0aae3f9606\",\"funding_address\":\"ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqthj2jju7mskjqvaqhgxmuy06q8jp5fyxqnefz3j\",\"node_id\":\"8202d264-e4fd-4f0b-adc1-c18d35180ce7\",\"provider_policy\":{\"accept_public_orders\":true,\"auto_approve\":true,\"committed_ckb\":901,\"max_order_ckb\":2000,\"max_total_ckb\":5000,\"min_fee_ckb\":61},\"reserve_ckb\":99,\"version\":\"0.9.0\"}",
+    "signature": "924e100be9dc99f28f810dc124c92d28eccc98a7016ebde7bb7562c91eec7ba069a0f798f4605af78ce8657d9bf40473cd9b2119aa4da52a1c5a6485f651830b"
+  }
+}

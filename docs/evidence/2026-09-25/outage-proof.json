@@ -1,0 +1,42 @@
+{
+  "payer": {
+    "payment_hash": "0xb16c60c969b8dd91e17ed5e63c189c0cda3dc0fd031381eac8811dc968ee2bd3",
+    "status": "Success",
+    "created_at": "0x1a0d9d1fb04",
+    "last_updated_at": "0x1a0d9d1fb04",
+    "failed_error": null,
+    "fee": "0x186a0",
+    "custom_records": null
+  },
+  "merchant": {
+    "invoice_address": "fibt1000000001pusd7g8z04xgfw0pnm6vhrff8j2f5puyflut0090ny5dlrsjtdfp8n9knw2m4jf9xtt84nggqn9zk6mp9wrd8qv76z8ukewms2gfqwf08nvnwamm0pjmgawd4wqt54rlej6hug3hahz3vh4j9ewgaa45v5440tdy4u49rg8mx6f7qzzrzmqn0qfqq4ejmhtg6x60zrmuzxlesn9pvkuakzyxk5rnk4jqr0z7rqfp6mm92pyfwad8txu74uate2a46xzrgjlj7r9dr2mz03knqgpv2gq8us2vyek376eyeexezl20d9l5225atc8h6207qa4f6pfyejsk594t5kc56t8dga8xcqlsvxrlvca9gzlxu0mcetz6l9rqmahnvuxyygq0k608z",
+    "invoice": {
+      "currency": "Fibt",
+      "amount": "0x5f5e100",
+      "signature": "071c100a0c041916111e1a190419190619021f0a0f0d051f140a0a141d0b1807171a0a0f1e001d15091a010904191210161405150b141618141a0b070d081d070618001f100c06031f0c181d0508021f061c0f1b18190b021a1f0503001b1d17130c1c0604040800",
+      "data": {
+        "timestamp": "0x1a0d9d1faef",
+        "payment_hash": "0xb16c60c969b8dd91e17ed5e63c189c0cda3dc0fd031381eac8811dc968ee2bd3",
+        "attrs": [
+          {
+            "description": "LiquidLane coordinator outage proof"
+          },
+          {
+            "expiry_time": "0xe10"
+          },
+          {
+            "feature": []
+          },
+          {
+            "final_htlc_minimum_expiry_delta": "0x927c00"
+          },
+          {
+            "payee_public_key": "039a32103641975837d9ba52477e57be2918b16e4040c5e5d0da8d3316d46e4e50"
+          }
+        ]
+      }
+    },
+    "status": "Paid"
+  },
+  "coordinator_running": false
+}

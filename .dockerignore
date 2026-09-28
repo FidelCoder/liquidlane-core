@@ -6,3 +6,12 @@ ckb-scripts/target
 ckb-scripts/build
 liquidlane-data.json
 *.log
+runtime
+connector-state
+*.sqlite3*
+*.key
+*proposal*.md
+*plan*.md
+*task*.md
+TASKS.md
+docs/spark-*.md
