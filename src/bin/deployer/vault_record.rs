@@ -29,8 +29,7 @@ pub(super) fn write_record(
 ) -> Result<PathBuf> {
     fs::create_dir_all(&config.deployments_dir)?;
     let path = config.deployments_dir.join(format!(
-        "vault-testnet-{}-{}.json",
-        Utc::now().format("%Y-%m-%d"),
+        "vault-testnet-{}.json",
         tx_hash
             .trim_start_matches("0x")
             .chars()

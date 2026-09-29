@@ -1,4 +1,4 @@
-# Automatic public capacity order — 26 September 2026
+# Automatic capacity delivery
 
 An actual CKB testnet order delivered 500 CKB of initial receive capacity with an empty merchant allowlist and automatic provider approval. The merchant signed the quote; no provider `approve` command was issued. The local opening journal records `approved: false`, `attempted: true`, and a 600 CKB funding commitment. Core recorded `automatic_provider_authorization` before native funding.
 
@@ -13,10 +13,10 @@ An actual CKB testnet order delivered 500 CKB of initial receive capacity with a
 | Test cleanup | Cooperative closing transaction `0x65a91b4b6f3c3d31c8d122a9c26310df76faa5130e9e9710b090798198f4bc0d` committed; both native nodes report `Closed` |
 | Returned channel funds | Provider: 599 CKB; merchant: 99.99998944 CKB, including the received probe and after the closing fee |
 
-The provider's keys and funding stayed on its node. The payer used the existing payer-to-provider route. This test's channel was closed after fee settlement; the user's separate completed channel and the payer route remain available.
+The provider's keys and funding stayed on its node. The payer used the existing payer-to-provider route. This test's channel was closed after fee settlement and was separate from the completed JoyID order.
 
 [summary.json](summary.json) contains the actual policy, selected local journal fields, payer result, and closure observations. [receipt.json](receipt.json) contains the provider quote, native merchant acceptance, signed delivery observations, and coordinator events. The [fee transaction](fee-transaction.json) and [closing transaction](closing-transaction.json) are public signed CKB transactions. [sha256.json](sha256.json) records the artifact hashes. No node keys, session tokens, or registration credentials are included.
 
-Validation also passed: 69 Rust tests, formatting and source-size checks, frontend lint and production build, four desktop/mobile public-API checks, and two desktop/mobile onboarding checks using real Fiber nodes. The onboarding tests verify an automatic pairing file without merchant addresses and hide the manual approval command for automatic orders.
+Checks recorded with this run: 69 Rust tests, formatting and source-size checks, frontend lint and production build, four desktop/mobile public-API checks, and two desktop/mobile onboarding checks using real Fiber nodes. The onboarding tests verify an automatic pairing file without merchant addresses and hide the manual approval command for automatic orders.
 
 All nodes in this run are team-operated. The automatic opening test uses native wallet signatures; it does not automate a JoyID passkey. The probe, delivery verification, fee payment, and cleanup were explicit test actions. Only quote signing and channel connection/funding are automatic in the product. Fees remain payable after verified delivery and are not guaranteed to be collected. Independent operator trials, public hosting, and guaranteed-duration enforcement remain separate work.

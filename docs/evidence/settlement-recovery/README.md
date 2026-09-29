@@ -8,7 +8,7 @@ The connector and coordinator now verify native settlement independently of stal
 - `provider_offline-settlement.json`: the second recorded unilateral closure resolves through three committed transactions, even though the recorded provider response had no shutdown hash and remained `ShuttingDown`.
 - `cooperative-settlement.json`: the recorded cooperative close resolves directly to wallet outputs in one committed closing transaction.
 
-Each record includes the funding outpoint and complete verified transaction list. Run `liquidlane-connector settlement-status <config.json> '<funding-hash>#0'` to recheck it. A confirmation establishes historical settlement of the pinned native contracts, not the amount currently available in either wallet. The older raw native observations remain in `../2026-09-25/recovery-followup.json`; this work does not patch Fiber 0.9.0 or assert that its stale flags have disappeared.
+Each record includes the funding outpoint and complete verified transaction list. Run `liquidlane-connector settlement-status <config.json> '<funding-hash>#0'` to recheck it. A confirmation establishes historical settlement of the pinned native contracts, not the amount currently available in either wallet. The older raw native observations remain in `../coordinator-outage/recovery-followup.json`; this work does not patch Fiber 0.9.0 or assert that its stale flags have disappeared.
 
 ## Managed services and browser
 

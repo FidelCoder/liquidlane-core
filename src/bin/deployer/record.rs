@@ -91,7 +91,7 @@ fn record_file_name(tx_hash: &str) -> String {
         .chars()
         .take(12)
         .collect::<String>();
-    format!("testnet-{}-{short}.json", Utc::now().format("%Y-%m-%d"))
+    format!("testnet-{short}.json")
 }
 
 pub fn write_env(scripts: &[ScriptArtifact], receipt: &DeployReceipt) -> Result<()> {

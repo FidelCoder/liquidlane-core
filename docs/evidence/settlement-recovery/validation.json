@@ -32,7 +32,7 @@
       "note": "Controlled marketplace responses; existing local Chromium 1234 selected with PLAYWRIGHT_CHROMIUM_PATH."
     },
     {
-      "command": "python3 scripts/verify-provider-setup.py --cache-home /tmp/liquidlane-install-check-cache --app-url http://127.0.0.1:3016 --output docs/evidence/2026-09-28/provider-services.json",
+      "command": "python3 scripts/verify-provider-setup.py --cache-home /tmp/liquidlane-install-check-cache --app-url http://127.0.0.1:3016 --output docs/evidence/settlement-recovery/provider-services.json",
       "result": "passed",
       "note": "Stable temporary binaries; real testnet RPC and user services, native-wallet account; both browser viewports. No new channel or transfer."
     },

@@ -53,7 +53,7 @@ liquidlane-connector service-start ./connector.json
 
 ## Verification boundary
 
-The [28 September validation](evidence/2026-09-28/README.md) uses a fresh, unfunded managed node and an isolated coordinator with real CKB RPC, native wallet signatures, and systemd user services. It checks the official release digest, setup, signed funding heartbeat, both services recovering from forced process crashes, explicit service restart, and repeated setup preserving keys and identity. The browser check verifies the real signed funding address and Add capital page on desktop and mobile. No channel or funding transfer is requested by this check.
+The [managed provider validation](evidence/settlement-recovery/README.md) uses a fresh, unfunded managed node and an isolated coordinator with real CKB RPC, native wallet signatures, and systemd user services. It checks the official release digest, setup, signed funding heartbeat, both services recovering from forced process crashes, explicit service restart, and repeated setup preserving keys and identity. The browser check verifies the real signed funding address and Add capital page on desktop and mobile. No channel or funding transfer is requested by this check.
 
 Reproduce after building the Core binaries and starting the app (with its dependencies and Playwright Chromium installed):
 

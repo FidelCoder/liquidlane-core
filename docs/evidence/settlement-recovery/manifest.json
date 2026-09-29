@@ -2,7 +2,7 @@
   "files": [
     {
       "file": "README.md",
-      "sha256": "726f08df62b9ba15355a1731942885a2bbbf9fef80b474e807d7015ed3981836"
+      "sha256": "c9d5a0267fc680c59b6f4015e158e25cdb233bc1f381a0bfd0ff5b8430cdc16f"
     },
     {
       "file": "cooperative-settlement.json",
@@ -30,7 +30,7 @@
     },
     {
       "file": "validation.json",
-      "sha256": "55895525f09c56157fa9f4334e958aad1c5a54ba3e61cf2cbd4cb8663ef10905"
+      "sha256": "dfcf7ea638b47c4970f24262648a78a4f3daa5fc9782a7c3072788821a0fdd0b"
     }
   ]
 }

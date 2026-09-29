@@ -1,8 +1,6 @@
 # LiquidLane CKB Scripts
 
-This folder contains the CKB-native lock/type scripts for the LiquidLane vault layer.
-
-The current scripts are deployed on CKB testnet and wired to a live vault cell. They define the trust layer so Core and the app do not rely on a normal wallet address for pooled funds.
+This folder preserves the legacy vault's CKB lock/type scripts and public deployment records. The marketplace uses native Fiber channels; these scripts belong to the separate legacy runtime.
 
 ## Services Covered
 
@@ -43,9 +41,10 @@ export RISCV_TOOLCHAIN_BIN=/tmp/liquidlane-riscv-toolchain/root/usr/bin
 scripts/build-ckb-scripts.sh
 ```
 
-Current testnet records:
+Public script and vault records are indexed in [deployments](deployments/README.md). Transaction hashes identify the records; inspect their current on-chain state before using any historical outpoint.
 
-- Script deployment: `ckb-scripts/deployments/testnet-2026-07-04-a00be7fdb859.json`
-- Vault cell: `ckb-scripts/deployments/vault-testnet-2026-07-04-477be93d5587.json`
-- Script tx: `0xa00be7fdb8598a58e8938403204e2d55ffdb2806566cbca7a71fc86d82dccb7f`
-- Vault tx: `0x477be93d5587b6ff040858605a0e2c440f6a2e3587fa1bd3dd139391e06b2370`
+## Legacy runtime and recovery
+
+Legacy mode must be selected explicitly in the process environment with `LIQUIDLANE_PRODUCT_MODE=legacy_vault`. It reads its original `.env` and JSON state. `.env.legacy.example` in the repository root documents the required configuration. Existing ledgers, deployed cells, and native node stores must be reconciled separately from marketplace provider balances.
+
+Keep existing private state and keys during recovery. The legacy API exposes the configured vault through `/vault` and recorded positions through `/dashboard`; configuration alone does not establish that a cell remains live or a liability has been settled. See the [operations guide](../docs/marketplace-operations.md#legacy-boundary) for the runtime boundary and the [script review](AUDIT.md) for outstanding security work.

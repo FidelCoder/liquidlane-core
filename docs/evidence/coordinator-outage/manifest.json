@@ -26,6 +26,7 @@
     "provider-before-outage.json": "a949c9be403325581722a2aaa8d2e9606ec6a73385c3461f9f4434459cfb2b0e",
     "recovery-followup.json": "01b46b6d26a4d7188661c8ea43d9849f43c5d3f5b52e2ec1623f5dc11dbf9109",
     "routed-probe-payment.json": "608690e5dbba6a6aa1b008613a21f87a7899a6ff2fc2594101d839749c5fda96",
-    "validation.json": "2363abe0238980bcdd793f3c372484c35934c8d8058adc4c56b60a867cef9482"
+    "validation.json": "2363abe0238980bcdd793f3c372484c35934c8d8058adc4c56b60a867cef9482",
+    "README.md": "8d977cdb040289ffd5dd7637432a2b06700711ee6dbad055d64c9e293548eb81"
   }
 }

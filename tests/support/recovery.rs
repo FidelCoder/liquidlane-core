@@ -14,8 +14,8 @@ pub fn records() -> BTreeMap<String, Value> {
     let mut records: BTreeMap<String, Value> =
         serde_json::from_str(include_str!("../fixtures/recovery-funding.json")).unwrap();
     for text in [
-        include_str!("../../docs/evidence/2026-09-25/forced-commitments.json"),
-        include_str!("../../docs/evidence/2026-09-25/forced-settlements.json"),
+        include_str!("../../docs/evidence/coordinator-outage/forced-commitments.json"),
+        include_str!("../../docs/evidence/coordinator-outage/forced-settlements.json"),
     ] {
         let data: Value = serde_json::from_str(text).unwrap();
         for (hash, tx) in data["transactions"].as_object().unwrap() {

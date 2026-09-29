@@ -2,7 +2,7 @@
 
 A CKB testnet marketplace for **initial Fiber receive capacity**. Providers operate their own nodes, fund their own native bidirectional channels, and retain their keys. LiquidLane coordinates discovery, signed quotes, orders, delivery evidence, and direct service fees.
 
-The first pilot charges for opening capacity. It does not guarantee duration, ongoing replenishment, or passive yield. No pooled vault or custom contract is required by this flow.
+The service charges for opening capacity. It does not guarantee duration, ongoing replenishment, or passive yield. No pooled vault or custom contract is required by this flow.
 
 ## Run locally
 
@@ -38,7 +38,7 @@ Provider setup enables automatic public requests. After connecting, **Add capita
 7. Merchant verifies delivery. The agreed capacity must remain available after the probe.
 8. Merchant pays the provider directly. Core credits only a matching, confirmed CKB payment after delivery.
 
-The prototype vault flow is archived in [the legacy guide](docs/legacy-vault-readme.md) and remains available only through explicit `LIQUIDLANE_PRODUCT_MODE=legacy_vault`. Existing deployed scripts and recovery records are preserved. Never treat legacy LP assets as marketplace provider capital.
+The legacy vault runtime remains available only through explicit `LIQUIDLANE_PRODUCT_MODE=legacy_vault`. Its [script and recovery reference](ckb-scripts/README.md) preserves public deployment records. Never treat legacy LP assets as marketplace provider capital.
 
 ## Documentation
 
